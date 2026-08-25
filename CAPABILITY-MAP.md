@@ -20,4 +20,4 @@ Source: [docs/architecture-design.md](docs/architecture-design.md)
 - `report` depends on `query`’s retrieval/generation ports, not on a separate duplicate RAG stack.
 - Interfaces at boundaries live in the **provider** module’s future `SPEC-<id>.md` (e.g. `VectorStorePort` / `QueryPort` in `query` or shared `platform-foundation` ports package).
 
-**Status:** Approved (umbrella + auth order). Active module: `platform-foundation` → [SPEC-platform-foundation.md](SPEC-platform-foundation.md).
+**Status:** Approved. `platform-foundation` done; `ingestion` MVP implemented.

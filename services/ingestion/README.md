@@ -1,5 +1,13 @@
 # Ingestion service
 
-EDGAR ETL + Dagster. Spec: future `SPEC-ingestion.md` (see CAPABILITY-MAP.md).
+EDGAR ETL: fetch → store → parse → chunk → embed.
 
-Layers: domain → application → infrastructure / presentation.
+Spec: [`SPEC-ingestion.md`](../../SPEC-ingestion.md)
+
+```bash
+uv run pytest services/ingestion -q
+# Optional UI (when exploring assets):
+# uv run dagster dev -f services/ingestion/src/kb_ingestion/presentation/definitions.py
+```
+
+Layers: `application` / `domain` / `infrastructure` / `presentation`.

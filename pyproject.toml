@@ -9,6 +9,7 @@ dependencies = [
     "kb-application-ports",
     "kb-testing",
     "kb-bff",
+    "kb-ingestion",
 ]
 
 [dependency-groups]
@@ -29,6 +30,7 @@ members = [
     "packages/application_ports",
     "packages/testing",
     "apps/bff",
+    "services/ingestion",
 ]
 
 [tool.uv.sources]
@@ -36,6 +38,7 @@ kb-domain = { workspace = true }
 kb-application-ports = { workspace = true }
 kb-testing = { workspace = true }
 kb-bff = { workspace = true }
+kb-ingestion = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -44,6 +47,7 @@ testpaths = [
     "packages/application_ports",
     "packages/testing",
     "apps/bff",
+    "services/ingestion",
 ]
 
 [tool.ruff]
@@ -57,10 +61,16 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["kb_domain", "kb_application_ports", "kb_testing", "kb_bff"]
+packages = ["kb_domain", "kb_application_ports", "kb_testing", "kb_bff", "kb_ingestion"]
 mypy_path = [
     "packages/domain/src",
     "packages/application_ports/src",
     "packages/testing/src",
     "apps/bff/src",
+    "services/ingestion/src",
 ]
+
+[[tool.mypy.overrides]]
+module = "kb_ingestion.presentation.*"
+disallow_untyped_decorators = false
+disable_error_code = ["no-untyped-def"]
