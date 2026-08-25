@@ -1,5 +1,5 @@
 # Report service
 
-Template-driven reports via LangGraph. Spec: future `SPEC-report.md` (see CAPABILITY-MAP.md).
+Template-driven multi-section reports over grounded RAG.
 
-Layers: domain → application → infrastructure / presentation.
+Spec: [`SPEC-report.md`](../../SPEC-report.md)

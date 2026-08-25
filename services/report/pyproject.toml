@@ -1,0 +1,21 @@
+[project]
+name = "kb-report"
+version = "0.1.0"
+description = "Template-driven report generation over grounded RAG"
+requires-python = ">=3.12"
+dependencies = [
+    "kb-domain",
+    "kb-query",
+    "langgraph>=0.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kb_report"]
+
+[tool.uv.sources]
+kb-domain = { workspace = true }
+kb-query = { workspace = true }

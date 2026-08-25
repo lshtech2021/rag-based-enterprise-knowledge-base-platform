@@ -15,6 +15,7 @@ members = [
     "kb-identity",
     "kb-ingestion",
     "kb-query",
+    "kb-report",
     "kb-testing",
     "rag-knowledge-base-platform",
 ]
@@ -685,6 +686,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "kb-identity" },
     { name = "kb-query" },
+    { name = "kb-report" },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -694,6 +696,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "kb-identity", editable = "packages/identity" },
     { name = "kb-query", editable = "services/query" },
+    { name = "kb-report", editable = "services/report" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
@@ -745,6 +748,23 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "kb-domain", editable = "packages/domain" },
+    { name = "langgraph", specifier = ">=0.2" },
+]
+
+[[package]]
+name = "kb-report"
+version = "0.1.0"
+source = { editable = "services/report" }
+dependencies = [
+    { name = "kb-domain" },
+    { name = "kb-query" },
+    { name = "langgraph" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "kb-domain", editable = "packages/domain" },
+    { name = "kb-query", editable = "services/query" },
     { name = "langgraph", specifier = ">=0.2" },
 ]
 
@@ -1555,6 +1575,7 @@ dependencies = [
     { name = "kb-identity" },
     { name = "kb-ingestion" },
     { name = "kb-query" },
+    { name = "kb-report" },
     { name = "kb-testing" },
 ]
 
@@ -1575,6 +1596,7 @@ requires-dist = [
     { name = "kb-identity", editable = "packages/identity" },
     { name = "kb-ingestion", editable = "services/ingestion" },
     { name = "kb-query", editable = "services/query" },
+    { name = "kb-report", editable = "services/report" },
     { name = "kb-testing", editable = "packages/testing" },
 ]
 

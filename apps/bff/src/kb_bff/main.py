@@ -5,6 +5,7 @@ from kb_identity import Authenticate, build_authenticator
 
 from kb_bff.identity_router import router as identity_router
 from kb_bff.query_router import router as query_router
+from kb_bff.report_router import router as report_router
 from kb_bff.settings import Settings, get_settings
 
 
@@ -17,6 +18,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(identity_router)
     app.include_router(query_router)
+    app.include_router(report_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

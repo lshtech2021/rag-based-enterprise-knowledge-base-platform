@@ -12,6 +12,7 @@ dependencies = [
     "kb-bff",
     "kb-ingestion",
     "kb-query",
+    "kb-report",
 ]
 
 [dependency-groups]
@@ -35,6 +36,7 @@ members = [
     "apps/bff",
     "services/ingestion",
     "services/query",
+    "services/report",
 ]
 
 [tool.uv.sources]
@@ -45,6 +47,7 @@ kb-identity = { workspace = true }
 kb-bff = { workspace = true }
 kb-ingestion = { workspace = true }
 kb-query = { workspace = true }
+kb-report = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -56,6 +59,7 @@ testpaths = [
     "apps/bff",
     "services/ingestion",
     "services/query",
+    "services/report",
 ]
 
 [tool.ruff]
@@ -77,6 +81,7 @@ packages = [
     "kb_bff",
     "kb_ingestion",
     "kb_query",
+    "kb_report",
 ]
 mypy_path = [
     "packages/domain/src",
@@ -86,6 +91,7 @@ mypy_path = [
     "apps/bff/src",
     "services/ingestion/src",
     "services/query/src",
+    "services/report/src",
 ]
 
 [[tool.mypy.overrides]]
