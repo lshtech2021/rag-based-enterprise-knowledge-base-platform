@@ -10,4 +10,9 @@ uv sync --group dev
 make test lint typecheck
 uv run uvicorn kb_bff.main:app --reload --port 8000
 curl -s localhost:8000/healthz
+
+# Web UI (Annex)
+cd apps/web && npm install && npm run dev
 ```
+
+Open http://localhost:3000 — console and reports call the BFF (`NEXT_PUBLIC_BFF_URL`).

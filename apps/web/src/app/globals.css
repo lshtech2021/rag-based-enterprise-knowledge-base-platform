@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0e1512;
+  --paper: #f3f0e8;
+  --paper-deep: #e7e2d4;
+  --teal: #0f766e;
+  --teal-bright: #14b8a6;
+  --amber: #c45c26;
+  --muted: #5c675f;
+  --line: color-mix(in oklab, var(--ink) 12%, transparent);
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-teal: var(--teal);
+  --color-teal-bright: var(--teal-bright);
+  --color-amber: var(--amber);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --font-sans: var(--font-source-sans);
+  --font-display: var(--font-literata);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-source-sans), system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-literata), Georgia, serif;
+}
+
+.atmosphere {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, var(--teal-bright) 28%, transparent), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, color-mix(in oklab, var(--amber) 18%, transparent), transparent 50%),
+    linear-gradient(180deg, var(--paper) 0%, var(--paper-deep) 100%);
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--ink) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--ink) 6%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, black 30%, transparent 95%);
+}
