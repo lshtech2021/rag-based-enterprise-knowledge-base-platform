@@ -1,0 +1,66 @@
+[project]
+name = "rag-knowledge-base-platform"
+version = "0.1.0"
+description = "RAG-based enterprise knowledge base platform"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "kb-domain",
+    "kb-application-ports",
+    "kb-testing",
+    "kb-bff",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "packages/domain",
+    "packages/application_ports",
+    "packages/testing",
+    "apps/bff",
+]
+
+[tool.uv.sources]
+kb-domain = { workspace = true }
+kb-application-ports = { workspace = true }
+kb-testing = { workspace = true }
+kb-bff = { workspace = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "packages/domain",
+    "packages/application_ports",
+    "packages/testing",
+    "apps/bff",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["packages", "apps"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["kb_domain", "kb_application_ports", "kb_testing", "kb_bff"]
+mypy_path = [
+    "packages/domain/src",
+    "packages/application_ports/src",
+    "packages/testing/src",
+    "apps/bff/src",
+]
