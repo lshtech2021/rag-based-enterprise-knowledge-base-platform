@@ -8,13 +8,14 @@ Umbrella: [SPEC-develop.md](SPEC-develop.md) · Map: [CAPABILITY-MAP.md](CAPABIL
 
 ## Objective
 
-Give analysts a branded web UI to **ask grounded questions** (SSE + source panel) and **generate citation-backed reports**, talking to the BFF under `dev_bypass` by default.
+Give analysts a branded web UI to **ask grounded questions** (SSE + source panel), **ingest EDGAR filings** (CIK + form types + raw download), and **generate citation-backed reports**, talking to the BFF under `dev_bypass` by default.
 
 **Brand:** **Annex** — enterprise filing knowledge with provenance first.
 
 **MVP success:**  
 - Landing with strong Annex brand signal  
 - `/console` streams `POST /v1/query` SSE (`token` / `sources` / `done`) and shows sources  
+- `/ingest` runs `POST /v1/ingest` and offers `GET /v1/filings/{accession}/raw` download  
 - `/reports` creates a `quarterly_risk_summary` report and renders returned Markdown + citations  
 - `GET /v1/me` shown in chrome  
 - Responsive; keyboard-accessible controls; BFF CORS enabled for local Next origin  
@@ -48,9 +49,9 @@ uv run uvicorn kb_bff.main:app --reload --port 8000
 
 ```
 apps/web/
-  src/app/           # layout, page, console, reports
-  src/components/    # ChatPanel, SourcePanel, ReportForm, AppChrome
-  src/lib/bff.ts     # fetch helpers + SSE parser
+  src/app/           # layout, page, console, ingest, reports
+  src/components/    # ChatConsole, IngestPanel, ReportBuilder, AppChrome
+  src/lib/bff.ts     # fetch helpers + SSE parser + ingest/download
 ```
 
 ---
@@ -78,9 +79,10 @@ apps/web/
 1. `npm run build` succeeds in `apps/web`.
 2. Landing first viewport: brand **Annex**, one headline, one supporting line, CTA to console.
 3. Console streams tokens and lists sources from SSE.
-4. Reports page can POST template + company/period and show markdown.
-5. BFF allows CORS from `http://localhost:3000`.
-6. Capability map / SPEC index updated.
+4. Ingest page accepts CIK + form types, shows accession/chunk count, and downloads raw HTML.
+5. Reports page can POST template + company/period and show markdown.
+6. BFF allows CORS from `http://localhost:3000`.
+7. Capability map / SPEC index updated.
 
 ---
 

@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
     "kb-query",
+    "kb-ingestion",
     "kb-identity",
     "kb-report",
     "kb-observability",
@@ -22,6 +23,7 @@ packages = ["src/kb_bff"]
 
 [tool.uv.sources]
 kb-query = { workspace = true }
+kb-ingestion = { workspace = true }
 kb-identity = { workspace = true }
 kb-report = { workspace = true }
 kb-observability = { workspace = true }

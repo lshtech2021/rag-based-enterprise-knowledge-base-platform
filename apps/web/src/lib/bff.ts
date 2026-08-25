@@ -114,3 +114,49 @@ export async function getReport(reportId: string): Promise<ReportResponse> {
   }
   return (await response.json()) as ReportResponse;
 }
+
+export type IngestResponse = {
+  accession_no: string;
+  skipped: boolean;
+  chunk_count: number;
+  s3_raw_path: string | null;
+  download_url: string;
+};
+
+export async function createIngest(input: {
+  cik: string;
+  form_types: string[];
+  force?: boolean;
+}): Promise<IngestResponse> {
+  const response = await fetch(`${bffBaseUrl}/v1/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      cik: input.cik,
+      form_types: input.form_types,
+      force: input.force ?? false,
+    }),
+  });
+  if (!response.ok) {
+    let detail = `Ingest failed (${response.status})`;
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as IngestResponse;
+}
+
+export async function downloadFilingRaw(accessionNo: string): Promise<Blob> {
+  const response = await fetch(
+    `${bffBaseUrl}/v1/filings/${encodeURIComponent(accessionNo)}/raw`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error(`Download failed (${response.status})`);
+  }
+  return response.blob();
+}

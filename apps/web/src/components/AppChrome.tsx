@@ -33,6 +33,9 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
             <Link className="hover:text-teal" href="/console">
               Console
             </Link>
+            <Link className="hover:text-teal" href="/ingest">
+              Ingest
+            </Link>
             <Link className="hover:text-teal" href="/reports">
               Reports
             </Link>
