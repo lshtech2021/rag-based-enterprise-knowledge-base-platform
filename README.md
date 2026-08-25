@@ -2,6 +2,8 @@
 
 See [SPEC-develop.md](SPEC-develop.md) and [CAPABILITY-MAP.md](CAPABILITY-MAP.md).
 
+EDGAR download how-to: [docs/edgar-download-guide.md](docs/edgar-download-guide.md).
+
 ## Quick start
 
 ```bash
