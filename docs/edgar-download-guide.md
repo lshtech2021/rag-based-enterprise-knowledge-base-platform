@@ -178,9 +178,10 @@ Form filter for MVP: `10-K`, `10-Q`, `8-K`.
 
 | Artifact | Where (target) | Why |
 |---|---|---|
-| Raw HTML/XML | Object store (MinIO/S3) | Immutable source of truth |
-| Filing metadata | Postgres `filings` | CIK, accession, form, dates, `s3_raw_path`, source URL |
-| Parsed sections / chunks | Postgres + vector index | RAG retrieval + citations |
+| Raw HTML/XML | Local FS (`data/ingestion/raw`) or MinIO/S3 | Immutable source of truth |
+| Filing metadata | SQLite locally / Postgres `filings` | CIK, accession, form, dates, `s3_raw_path`, source URL |
+| Parsed sections / chunks | SQLite / Postgres + vector index | RAG retrieval + citations |
+| Embeddings | OpenAI `text-embedding-3-small` (live); HashEmbedder (tests) | Dense retrieval |
 | XBRL facts (optional) | Postgres `financial_facts` | Structured numeric queries |
 
 Always keep **accession number**, **section**, and **source URL** with each chunk so answers remain citable.
@@ -193,10 +194,22 @@ Always keep **accession number**, **section**, and **source URL** with each chun
 |---|---|
 | Spec | [SPEC-ingestion.md](../SPEC-ingestion.md) |
 | HTTP client | `services/ingestion/.../edgar/http_client.py` |
-| Pipeline stages | Fetch → store → parse → chunk → embed (Dagster graph) |
+| CLI | `uv run kb-ingest --cik … --forms …` (needs `SEC_USER_AGENT` + `OPENAI_API_KEY`) |
+| Local store | `data/ingestion/raw` + `ingestion.sqlite3` (`INGEST_DATA_DIR`) |
+| BFF / UI | `POST /v1/ingest`, `GET /v1/filings/{accession}/raw`, Annex `/ingest` |
+| Pipeline stages | Fetch → store → parse → chunk → embed |
 | CIK / accession types | `packages/domain` (`CIK`, `AccessionNumber`) |
 
 `HttpEdgarClient.fetch_latest_filing()` loads submissions, selects the newest matching form, builds the archive URL, and `download_filing_document()` pulls the bytes—with User-Agent and ≤10 req/s limiting.
+
+### Operator quick path
+
+```bash
+export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+export OPENAI_API_KEY="sk-..."
+uv run kb-ingest --cik 320193 --forms 10-K
+# or open http://localhost:3000/ingest with BFF running
+```
 
 ---
 

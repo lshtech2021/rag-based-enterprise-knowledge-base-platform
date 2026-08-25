@@ -103,10 +103,10 @@ presentation/        # FastAPI routers, GraphQL resolvers, CLI, gRPC
    - Respect SEC rate limits (10 req/sec) + required `User-Agent` header.
 2. **Store raw** → S3/MinIO (immutable, versioned) + metadata row in Postgres (`filings` table: cik, accession_no, form_type, filed_date, url, s3_path).
 3. **Parse** — Docling/Unstructured extracts sections (Item 1A Risk Factors, MD&A, financial tables) preserving structure; XBRL facts parsed separately into structured `financial_facts` table.
-4. **Chunk** — semantic chunking (section-aware, ~512–1024 tokens, overlap), attach metadata (company, form type, fiscal period, section, source URL) for citation.
-5. **Embed** — batch embedding via BGE-M3/OpenAI; store vectors + metadata in pgvector/Weaviate; also index text in OpenSearch for hybrid BM25.
-6. **Orchestrate** — Dagster asset graph: `raw_filing → parsed_doc → chunks → embeddings → indexed`, with retries, backfills, and data lineage/versioning (important for reproducible financial analysis).
-7. **Dedup/Incremental** — track `last_ingested_accession` per CIK; only pull deltas via submissions API.
+4. **Chunk** — section-aware, paragraph-first packing (~512 target / 768 max tokens, overlap), attach metadata (company, form type, fiscal period, section, source URL) for citation.
+5. **Embed** — batch embedding via OpenAI (`text-embedding-3-small`) for live runs; store vectors + metadata (SQLite JSON locally; pgvector target); also index text in OpenSearch for hybrid BM25 (deferred).
+6. **Surfaces** — CLI `kb-ingest`, BFF `POST /v1/ingest` + raw download, Annex `/ingest` UI; Dagster asset graph remains for orchestration later.
+7. **Dedup/Incremental** — track `last_ingested_accession` per CIK; only pull deltas via submissions API unless `force`.
 
 ---
 

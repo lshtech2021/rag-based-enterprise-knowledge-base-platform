@@ -26,7 +26,7 @@ Answer analyst questions with **grounded, cited** responses over ingested chunks
 | Hybrid retrieval | In-memory dense cosine + keyword overlap → **RRF**; OpenSearch adapter deferred |
 | Rerank | Identity/pass-through port (cross-encoder later) |
 | LLM | `LLMPort` + `FakeLLM` for tests; OpenAI adapter deferred behind port |
-| Embed query | Reuse `EmbedderPort` / `HashEmbedder` from ingestion patterns (query package may depend on shared ports or duplicate thin protocol) |
+| Embed query | `EmbedderPort` + **`OpenAIQueryEmbedder`** (`text-embedding-3-small`) for live; **`HashQueryEmbedder`** for tests (must match ingest dimensions) |
 | API | FastAPI SSE on BFF `POST /v1/query` |
 
 ---
@@ -52,6 +52,8 @@ services/query/
     application/ports/
     application/use_cases/answer_query.py
     infrastructure/
+      embeddings/hash_query_embedder.py
+      embeddings/openai_query_embedder.py
       llm/fake_llm.py
       retrieval/in_memory_hybrid.py
       rerank/noop_reranker.py

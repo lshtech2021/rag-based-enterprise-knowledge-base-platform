@@ -3,17 +3,18 @@
 Module id: `ingestion`  
 Depends on: `platform-foundation`  
 Umbrella: [SPEC-develop.md](SPEC-develop.md) · Map: [CAPABILITY-MAP.md](CAPABILITY-MAP.md)  
-Architecture: [docs/architecture-design.md](docs/architecture-design.md) §4
+Architecture: [docs/architecture-design.md](docs/architecture-design.md) §4  
+Operator guide: [docs/edgar-download-guide.md](docs/edgar-download-guide.md) · Service README: [services/ingestion/README.md](services/ingestion/README.md)
 
 ---
 
 ## Objective
 
-Ingest SEC EDGAR filings for a curated CIK set into MinIO (raw) + Postgres (metadata/chunks) + pgvector (embeddings), with section-aware chunking and incremental dedup—so `query` can retrieve grounded context.
+Ingest SEC EDGAR filings for a chosen CIK (+ form types) into a local data plane (filesystem raw + SQLite metadata/chunks/embeddings), with section-aware chunking and OpenAI embeddings—so `query` can retrieve grounded context. Postgres/MinIO/pgvector remain the long-term target when Compose is available.
 
-**User:** platform operator running Dagster (or a CLI) for one company/filing.
+**User:** platform operator via **CLI**, **BFF HTTP API**, or Annex **`/ingest`** UI.
 
-**MVP success:** Given a fixture CIK + mocked/fixture filing HTML, `IngestFiling` produces: raw object key, `filings` row, ≥1 `chunks` row with section metadata, and embedding vectors—fully verified with fakes in unit/application tests. Real HTTP/EDGAR and Compose integrations are optional (`@pytest.mark.integration`).
+**Success:** Given a fixture CIK + mocked filing HTML, `IngestFiling` produces: raw object key, `filings` row, ≥1 `chunks` row with section metadata, and embedding vectors—verified with fakes. Live SEC + OpenAI runs require `SEC_USER_AGENT` and `OPENAI_API_KEY` (not in default `make test`).
 
 ---
 
@@ -22,12 +23,14 @@ Ingest SEC EDGAR filings for a curated CIK set into MinIO (raw) + Postgres (meta
 | Piece | Choice |
 |---|---|
 | Package | `kb-ingestion` (uv workspace member under `services/ingestion`) |
-| Orchestration | Dagster asset graph (definitions importable; `dagster dev` later) |
+| Operator surfaces | CLI `kb-ingest`; BFF `POST /v1/ingest` + `GET /v1/filings/{accession}/raw`; Dagster graph stub |
 | HTTP | httpx + SEC rate limit (≤10 req/s) + required `User-Agent` |
-| Parse (MVP) | `DocumentParserPort` + **SimpleHtmlSectionParser** (Item 1A / MD&A heuristics); Docling adapter deferred behind same port |
-| Embed (MVP) | `EmbedderPort` + deterministic `HashEmbedder` for tests; OpenAI adapter optional via env |
-| Persist | SQL schema + repository ports; **InMemory** adapters for unit tests; Postgres/pgvector + MinIO adapters when Compose is up |
-| OpenSearch | Port stub only (index no-op); real BM25 indexing deferred |
+| Parse | `DocumentParserPort` + **SimpleHtmlSectionParser** (Item 1/1A/1B/2/3/7/7A/8 + 10-Q Part headings); Docling deferred |
+| Chunk | Paragraph-first then sentence pack; target **512** / max **768** / overlap **64** tokens |
+| Embed | `EmbedderPort` + **`OpenAIEmbedder`** (`text-embedding-3-small`, 1536-d) for live; **`HashEmbedder`** for tests |
+| Persist (local) | `LocalFilesystemObjectStore` + `SqliteKnowledgeStore` under `INGEST_DATA_DIR` |
+| Persist (target) | Postgres/pgvector + MinIO when Compose is up |
+| OpenSearch | Port stub only (index no-op); real BM25 deferred |
 
 ---
 
@@ -35,12 +38,15 @@ Ingest SEC EDGAR filings for a curated CIK set into MinIO (raw) + Postgres (meta
 
 ```bash
 uv sync --group dev
-uv run pytest services/ingestion packages -q
+export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+export OPENAI_API_KEY="sk-..."
+
+uv run kb-ingest --cik 320193 --forms 10-K,10-Q,8-K
+# or: make ingest CIK=320193 FORMS=10-K
+
+uv run pytest services/ingestion apps/bff/tests/test_ingest.py -q
 uv run ruff check services/ingestion
 uv run mypy
-# Optional when Docker available:
-docker compose -f infra/docker-compose.yml up -d
-uv run dagster dev -f services/ingestion/src/kb_ingestion/presentation/definitions.py
 ```
 
 ---
@@ -49,27 +55,42 @@ uv run dagster dev -f services/ingestion/src/kb_ingestion/presentation/definitio
 
 ```
 services/ingestion/
-  pyproject.toml
+  pyproject.toml          # script: kb-ingest
   src/kb_ingestion/
+    cli.py / __main__.py
     application/
-      ports/          # EdgarPort, FilingRepository, ChunkRepository, VectorStorePort,
-                      # EmbedderPort, DocumentParserPort, IngestionCursorPort
-      use_cases/      # ingest_filing.py
+      ports/              # EdgarPort, repos, EmbedderPort, …
+      use_cases/          # ingest_filing.py
     domain/
-      chunking.py     # section-aware chunk sizing rules (pure)
+      chunking.py         # paragraph-aware sizing (pure)
     infrastructure/
-      edgar/          # HttpEdgarClient (+ rate limiter)
-      parsing/        # simple_html_section_parser.py
-      embeddings/     # hash_embedder.py, openai_embedder.py (optional)
-      persistence/    # in_memory_*.py; postgres_*.py (thin, may stub if no Docker)
-      object_store/   # in_memory_object_store.py
-      schema/         # 001_ingestion.sql
+      edgar/              # HttpEdgarClient
+      parsing/            # simple_html_section_parser.py
+      embeddings/         # hash_embedder.py, openai_embedder.py
+      object_store/       # local_fs.py
+      persistence/        # in_memory.py, sqlite_store.py
+      schema/             # 001_ingestion.sql, 001_ingestion_sqlite.sql
+      wiring.py           # build_local_ingest / build_memory_ingest
+      raw_download.py     # resolve stored raw bytes for download API
     presentation/
-      definitions.py  # Dagster assets: raw_filing → parsed → chunks → embeddings
+      definitions.py      # Dagster placeholder graph
   tests/
     unit/
     application/
 ```
+
+BFF: `apps/bff/.../ingest_router.py` (`Role.OPERATOR`).
+
+---
+
+## HTTP API (BFF)
+
+| Method | Path | Body / notes |
+|---|---|---|
+| `POST` | `/v1/ingest` | `{ "cik", "form_types": ["10-K","10-Q","8-K"], "force"?: bool }` → accession, chunk_count, `download_url` |
+| `GET` | `/v1/filings/{accession_no}/raw` | Attachment download of stored HTML |
+
+Requires `SEC_USER_AGENT` + `OPENAI_API_KEY` on the BFF for live ingest wiring; download works against local SQLite/FS once a filing exists.
 
 ---
 
@@ -94,15 +115,18 @@ class IngestFiling:
     async def execute(self, command: IngestFilingCommand) -> IngestFilingResult: ...
 ```
 
+Live wiring injects `OpenAIEmbedder`; tests inject `HashEmbedder`.
+
 ---
 
 ## Testing Strategy
 
 | Level | Focus |
 |---|---|
-| Unit | `normalize`/chunking bounds; parser splits sections from fixture HTML |
-| Application | `IngestFiling` with all fakes — asserts filing + chunks + vectors + cursor advance |
-| Integration (optional) | Live EDGAR fetch with recorded User-Agent; Postgres/MinIO |
+| Unit | Chunking bounds; parser sections; OpenAI embedder with httpx mock; CLI env guards |
+| Application | `IngestFiling` with fakes / local FS+SQLite |
+| BFF | Fake Edgar + HashEmbedder: ingest JSON + raw download |
+| Integration (optional) | Live EDGAR + OpenAI — never in default `make test` |
 
 **Never** hit SEC or OpenAI from default `make test`.
 
@@ -114,12 +138,14 @@ class IngestFiling:
 
 - SEC `User-Agent` required on real client; throttle ≤10 req/s.
 - Persist accession + section on every chunk for citations.
-- Incremental: skip accession ≤ `last_ingested_accession` for CIK when cursor set.
+- Incremental: skip accession ≤ `last_ingested_accession` for CIK unless `force`.
+- Live paths require `OPENAI_API_KEY` (no silent hash fallback).
 
 **Ask first**
 
-- Adding Docling/OpenAI as hard dependencies in default sync.
-- Changing schema once `query` depends on it.
+- Adding Docling as a hard dependency in default sync.
+- Changing embedding dimensions/model once `query` depends on stored vectors.
+- Switching default persist from SQLite to Postgres.
 
 **Never**
 
@@ -135,7 +161,7 @@ class IngestFiling:
 companies(cik PK, name, ticker, sic, last_ingested_accession)
 filings(accession_no PK, cik FK, form_type, filed_date, period, s3_raw_path, source_url)
 chunks(chunk_id PK, accession_no FK, section, text, token_count, chunk_index)
-embeddings(chunk_id PK FK, embedding vector(N), metadata JSONB)
+embeddings(chunk_id PK FK, embedding /* JSON array locally; vector(N) on Postgres */, metadata)
 ```
 
 `financial_facts` / OpenSearch documents: out of MVP scope (ports may no-op).
@@ -145,14 +171,14 @@ embeddings(chunk_id PK FK, embedding vector(N), metadata JSONB)
 ## Success Criteria
 
 1. `IngestFiling` application test: fixture HTML → raw stored, filing saved, chunks with sections, embeddings written, cursor updated.
-2. `HttpEdgarClient` unit-tested with httpx mock: sends User-Agent; rate limiter allows burst within 10/s budget.
-3. `SimpleHtmlSectionParser` extracts at least one named section from fixture 10-K-like HTML.
-4. SQL schema file exists for companies/filings/chunks/embeddings.
-5. Dagster definitions expose asset graph `raw_filing → parsed_doc → chunks → embeddings` wiring the use case (executable with fakes/resources).
-6. Default `make test` stays green without Docker/network.
+2. `HttpEdgarClient` unit-tested with httpx mock: sends User-Agent; rate limiter within 10/s budget.
+3. `SimpleHtmlSectionParser` extracts named sections from fixture HTML; paragraph breaks preserved for chunking.
+4. SQLite (+ SQL) schema exists for companies/filings/chunks/embeddings.
+5. CLI `kb-ingest` and BFF ingest/download routes covered by tests (fakes).
+6. Default `make test` stays green without Docker/network/OpenAI.
 
 ---
 
 ## Open Questions
 
-None blocking. Curated CIK list for live runs: start with Apple `0000320193` as the documented example only.
+None blocking. Example CIK: Apple `320193` / `0000320193`.

@@ -686,6 +686,7 @@ source = { editable = "apps/bff" }
 dependencies = [
     { name = "fastapi" },
     { name = "kb-identity" },
+    { name = "kb-ingestion" },
     { name = "kb-observability" },
     { name = "kb-query" },
     { name = "kb-report" },
@@ -697,6 +698,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "kb-identity", editable = "packages/identity" },
+    { name = "kb-ingestion", editable = "services/ingestion" },
     { name = "kb-observability", editable = "packages/observability" },
     { name = "kb-query", editable = "services/query" },
     { name = "kb-report", editable = "services/report" },
@@ -759,12 +761,14 @@ name = "kb-query"
 version = "0.1.0"
 source = { editable = "services/query" }
 dependencies = [
+    { name = "httpx" },
     { name = "kb-domain" },
     { name = "langgraph" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
     { name = "kb-domain", editable = "packages/domain" },
     { name = "langgraph", specifier = ">=0.2" },
 ]

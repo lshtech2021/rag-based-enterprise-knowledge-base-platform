@@ -17,3 +17,13 @@ def test_split_long_text_multiple_chunks() -> None:
     chunks = split_section_text(text, target_tokens=64, min_tokens=32, max_tokens=96)
     assert len(chunks) > 1
     assert all(estimate_tokens(c) <= 120 for c in chunks)
+
+
+def test_split_prefers_paragraph_boundaries() -> None:
+    para = ("Competition remains intense across product lines and geographies. " * 20).strip()
+    text = f"{para}\n\n{(para + ' Extra.')}\n\n{para}"
+    chunks = split_section_text(text, target_tokens=80, min_tokens=40, max_tokens=120)
+    assert len(chunks) >= 2
+    # Paragraph break should appear as separate packed units when under max
+    joined = "\n\n".join(chunks)
+    assert "Competition remains intense" in joined
