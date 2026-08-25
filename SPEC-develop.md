@@ -263,7 +263,7 @@ Testable “develop is on track” gates — detailed criteria move into per-mod
 | identity | `SPEC-identity.md` | Implemented (dev_bypass + HMAC JWT oidc stand-in) |
 | report | `SPEC-report.md` | Implemented (Markdown MVP + provenance) |
 | frontend | `SPEC-frontend.md` | Implemented (Annex Next.js MVP) |
-| observability | `SPEC-observability.md` | Not written |
+| observability | `SPEC-observability.md` | Implemented (OTel + observer + citation eval) |
 
 After map + this umbrella are approved: Specify → Plan → Tasks → Implement **per module** in build order, starting with `platform-foundation`.
 

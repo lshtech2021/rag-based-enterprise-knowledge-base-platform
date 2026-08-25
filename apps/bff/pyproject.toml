@@ -10,6 +10,7 @@ dependencies = [
     "kb-query",
     "kb-identity",
     "kb-report",
+    "kb-observability",
 ]
 
 [build-system]
@@ -23,3 +24,4 @@ packages = ["src/kb_bff"]
 kb-query = { workspace = true }
 kb-identity = { workspace = true }
 kb-report = { workspace = true }
+kb-observability = { workspace = true }

@@ -9,6 +9,7 @@ dependencies = [
     "kb-application-ports",
     "kb-testing",
     "kb-identity",
+    "kb-observability",
     "kb-bff",
     "kb-ingestion",
     "kb-query",
@@ -33,6 +34,7 @@ members = [
     "packages/application_ports",
     "packages/testing",
     "packages/identity",
+    "packages/observability",
     "apps/bff",
     "services/ingestion",
     "services/query",
@@ -44,6 +46,7 @@ kb-domain = { workspace = true }
 kb-application-ports = { workspace = true }
 kb-testing = { workspace = true }
 kb-identity = { workspace = true }
+kb-observability = { workspace = true }
 kb-bff = { workspace = true }
 kb-ingestion = { workspace = true }
 kb-query = { workspace = true }
@@ -56,6 +59,7 @@ testpaths = [
     "packages/application_ports",
     "packages/testing",
     "packages/identity",
+    "packages/observability",
     "apps/bff",
     "services/ingestion",
     "services/query",
@@ -78,6 +82,7 @@ packages = [
     "kb_application_ports",
     "kb_testing",
     "kb_identity",
+    "kb_observability",
     "kb_bff",
     "kb_ingestion",
     "kb_query",
@@ -88,6 +93,7 @@ mypy_path = [
     "packages/application_ports/src",
     "packages/testing/src",
     "packages/identity/src",
+    "packages/observability/src",
     "apps/bff/src",
     "services/ingestion/src",
     "services/query/src",
