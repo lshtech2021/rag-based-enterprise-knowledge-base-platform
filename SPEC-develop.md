@@ -260,7 +260,7 @@ Testable “develop is on track” gates — detailed criteria move into per-mod
 | platform-foundation | `SPEC-platform-foundation.md` | Implemented (scaffold) |
 | ingestion | `SPEC-ingestion.md` | Implemented (MVP with fakes) |
 | query | `SPEC-query.md` | Implemented (MVP with fakes + SSE) |
-| identity | `SPEC-identity.md` | Not written |
+| identity | `SPEC-identity.md` | Implemented (dev_bypass + HMAC JWT oidc stand-in) |
 | report | `SPEC-report.md` | Not written |
 | frontend | `SPEC-frontend.md` | Not written |
 | observability | `SPEC-observability.md` | Not written |

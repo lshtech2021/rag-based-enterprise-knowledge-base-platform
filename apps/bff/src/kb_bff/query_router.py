@@ -8,8 +8,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from kb_identity.domain.principal import Principal, Role
 from kb_query.application.use_cases.answer_query import AnswerQuery, AnswerQueryCommand
 from pydantic import BaseModel, Field
+
+from kb_bff.auth_deps import require_roles_dep
 
 
 class QueryRequest(BaseModel):
@@ -31,12 +34,12 @@ router = APIRouter(prefix="/v1", tags=["query"])
 async def query_sse(
     body: QueryRequest,
     use_case: Annotated[AnswerQuery, Depends(get_answer_query)],
+    _principal: Annotated[Principal, Depends(require_roles_dep(Role.ANALYST))],
 ) -> StreamingResponse:
     async def event_stream() -> AsyncIterator[bytes]:
         result = await use_case.execute(
             AnswerQueryCommand(question=body.question, top_k=body.top_k)
         )
-        # Tokenize coarsely for SSE demo (FakeLLM returns full text at once)
         for token in _tokenize(result.answer):
             payload = {"type": "token", "data": token}
             yield f"data: {json.dumps(payload)}\n\n".encode()

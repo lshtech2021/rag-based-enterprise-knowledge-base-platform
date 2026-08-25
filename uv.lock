@@ -12,6 +12,7 @@ members = [
     "kb-application-ports",
     "kb-bff",
     "kb-domain",
+    "kb-identity",
     "kb-ingestion",
     "kb-query",
     "kb-testing",
@@ -682,6 +683,7 @@ version = "0.1.0"
 source = { editable = "apps/bff" }
 dependencies = [
     { name = "fastapi" },
+    { name = "kb-identity" },
     { name = "kb-query" },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
@@ -690,6 +692,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "kb-identity", editable = "packages/identity" },
     { name = "kb-query", editable = "services/query" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -699,6 +702,17 @@ requires-dist = [
 name = "kb-domain"
 version = "0.1.0"
 source = { editable = "packages/domain" }
+
+[[package]]
+name = "kb-identity"
+version = "0.1.0"
+source = { editable = "packages/identity" }
+dependencies = [
+    { name = "pyjwt" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyjwt", specifier = ">=2.9" }]
 
 [[package]]
 name = "kb-ingestion"
@@ -1401,6 +1415,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyjwt"
+version = "2.13.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+]
+
+[[package]]
 name = "pyreadline3"
 version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1529,6 +1552,7 @@ dependencies = [
     { name = "kb-application-ports" },
     { name = "kb-bff" },
     { name = "kb-domain" },
+    { name = "kb-identity" },
     { name = "kb-ingestion" },
     { name = "kb-query" },
     { name = "kb-testing" },
@@ -1548,6 +1572,7 @@ requires-dist = [
     { name = "kb-application-ports", editable = "packages/application_ports" },
     { name = "kb-bff", editable = "apps/bff" },
     { name = "kb-domain", editable = "packages/domain" },
+    { name = "kb-identity", editable = "packages/identity" },
     { name = "kb-ingestion", editable = "services/ingestion" },
     { name = "kb-query", editable = "services/query" },
     { name = "kb-testing", editable = "packages/testing" },
