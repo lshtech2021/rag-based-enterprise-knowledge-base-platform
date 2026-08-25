@@ -1,5 +1,7 @@
 # Query service
 
-Hybrid RAG Q&A. Spec: future `SPEC-query.md` (see CAPABILITY-MAP.md).
+Hybrid RAG Q&A with citations. Spec: [`SPEC-query.md`](../../SPEC-query.md)
 
-Layers: domain → application → infrastructure / presentation.
+```bash
+uv run pytest services/query apps/bff -q
+```

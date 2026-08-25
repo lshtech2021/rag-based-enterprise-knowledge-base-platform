@@ -259,7 +259,7 @@ Testable “develop is on track” gates — detailed criteria move into per-mod
 |---|---|---|
 | platform-foundation | `SPEC-platform-foundation.md` | Implemented (scaffold) |
 | ingestion | `SPEC-ingestion.md` | Implemented (MVP with fakes) |
-| query | `SPEC-query.md` | Not written |
+| query | `SPEC-query.md` | Implemented (MVP with fakes + SSE) |
 | identity | `SPEC-identity.md` | Not written |
 | report | `SPEC-report.md` | Not written |
 | frontend | `SPEC-frontend.md` | Not written |

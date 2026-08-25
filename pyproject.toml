@@ -10,6 +10,7 @@ dependencies = [
     "kb-testing",
     "kb-bff",
     "kb-ingestion",
+    "kb-query",
 ]
 
 [dependency-groups]
@@ -31,6 +32,7 @@ members = [
     "packages/testing",
     "apps/bff",
     "services/ingestion",
+    "services/query",
 ]
 
 [tool.uv.sources]
@@ -39,6 +41,7 @@ kb-application-ports = { workspace = true }
 kb-testing = { workspace = true }
 kb-bff = { workspace = true }
 kb-ingestion = { workspace = true }
+kb-query = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -48,12 +51,13 @@ testpaths = [
     "packages/testing",
     "apps/bff",
     "services/ingestion",
+    "services/query",
 ]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["packages", "apps"]
+src = ["packages", "apps", "services"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -61,13 +65,21 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["kb_domain", "kb_application_ports", "kb_testing", "kb_bff", "kb_ingestion"]
+packages = [
+    "kb_domain",
+    "kb_application_ports",
+    "kb_testing",
+    "kb_bff",
+    "kb_ingestion",
+    "kb_query",
+]
 mypy_path = [
     "packages/domain/src",
     "packages/application_ports/src",
     "packages/testing/src",
     "apps/bff/src",
     "services/ingestion/src",
+    "services/query/src",
 ]
 
 [[tool.mypy.overrides]]
