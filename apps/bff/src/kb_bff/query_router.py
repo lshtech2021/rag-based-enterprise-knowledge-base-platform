@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import nullcontext
@@ -17,6 +18,9 @@ from kb_query.application.use_cases.answer_query import AnswerQuery, AnswerQuery
 from pydantic import BaseModel, Field
 
 from kb_bff.auth_deps import require_roles_dep
+from kb_bff.logging_utils import get_logger, log_event, truncate
+
+_log = get_logger("kb_bff.query")
 
 
 class QueryRequest(BaseModel):
@@ -48,6 +52,14 @@ async def query_sse(
     principal: Annotated[Principal, Depends(require_roles_dep(Role.ANALYST))],
 ) -> StreamingResponse:
     tracer = getattr(request.app.state, "tracer", None)
+    log_event(
+        _log,
+        logging.INFO,
+        "query.start",
+        user_id=principal.user_id,
+        question=truncate(body.question),
+        top_k=body.top_k,
+    )
 
     async def event_stream() -> AsyncIterator[bytes]:
         started = time.perf_counter()
@@ -56,31 +68,53 @@ async def query_sse(
             if tracer is not None
             else nullcontext()
         )
-        with span_cm:
-            # `user_id` flows into AnswerQuery so its optional `logs` port
-            # (query_logs, compose only) can persist who asked.
-            result = await use_case.execute(
-                AnswerQueryCommand(
-                    question=body.question,
-                    top_k=body.top_k,
+        try:
+            with span_cm:
+                # `user_id` flows into AnswerQuery so its optional `logs` port
+                # (query_logs, compose only) can persist who asked.
+                result = await use_case.execute(
+                    AnswerQueryCommand(
+                        question=body.question,
+                        top_k=body.top_k,
+                        user_id=principal.user_id,
+                    )
+                )
+                latency_ms = (time.perf_counter() - started) * 1000
+                try:
+                    observer.record_retrieval(
+                        query=result.rewritten_question,
+                        hit_count=len(result.hits),
+                        latency_ms=latency_ms,
+                    )
+                    observer.record_generation(
+                        question=body.question,
+                        answer=result.answer,
+                        citation_count=len(result.citations),
+                        latency_ms=latency_ms,
+                    )
+                except Exception:
+                    pass
+                log_event(
+                    _log,
+                    logging.INFO,
+                    "query.success",
                     user_id=principal.user_id,
+                    question=truncate(body.question),
+                    top_k=body.top_k,
+                    hits=len(result.hits),
+                    citations=len(result.citations),
+                    latency_ms=round(latency_ms, 1),
                 )
+        except Exception as exc:
+            log_event(
+                _log,
+                logging.ERROR,
+                "query.error",
+                user_id=principal.user_id,
+                question=truncate(body.question),
+                error=type(exc).__name__,
             )
-            latency_ms = (time.perf_counter() - started) * 1000
-            try:
-                observer.record_retrieval(
-                    query=result.rewritten_question,
-                    hit_count=len(result.hits),
-                    latency_ms=latency_ms,
-                )
-                observer.record_generation(
-                    question=body.question,
-                    answer=result.answer,
-                    citation_count=len(result.citations),
-                    latency_ms=latency_ms,
-                )
-            except Exception:
-                pass
+            raise
 
         for token in _tokenize(result.answer):
             payload = {"type": "token", "data": token}

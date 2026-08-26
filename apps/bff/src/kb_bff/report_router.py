@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,6 +15,9 @@ from kb_report.application.use_cases.generate_report import (
 from pydantic import BaseModel, Field
 
 from kb_bff.auth_deps import require_roles_dep
+from kb_bff.logging_utils import get_logger, log_event
+
+_log = get_logger("kb_bff.report")
 
 
 class CreateReportRequest(BaseModel):
@@ -45,6 +49,15 @@ async def create_report(
     use_case: Annotated[GenerateReport, Depends(get_generate_report)],
     principal: Annotated[Principal, Depends(require_roles_dep(Role.ANALYST))],
 ) -> dict[str, object]:
+    log_event(
+        _log,
+        logging.INFO,
+        "report.create.start",
+        user_id=principal.user_id,
+        template_id=body.template_id,
+        company=body.company,
+        period=body.period,
+    )
     try:
         result = await use_case.execute(
             GenerateReportCommand(
@@ -55,7 +68,24 @@ async def create_report(
             )
         )
     except KeyError as exc:
+        log_event(
+            _log,
+            logging.WARNING,
+            "report.create.error",
+            user_id=principal.user_id,
+            template_id=body.template_id,
+            error=str(exc),
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    log_event(
+        _log,
+        logging.INFO,
+        "report.create.success",
+        user_id=principal.user_id,
+        report_id=result.report.report_id,
+        template_id=body.template_id,
+        sections=len(result.report.sections),
+    )
     return _serialize(result.report)
 
 
@@ -67,7 +97,9 @@ async def get_report(
 ) -> dict[str, object]:
     report = await repo.get(report_id)
     if report is None:
+        log_event(_log, logging.WARNING, "report.get.missing", report_id=report_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    log_event(_log, logging.INFO, "report.get.success", report_id=report_id)
     return _serialize(report)
 
 

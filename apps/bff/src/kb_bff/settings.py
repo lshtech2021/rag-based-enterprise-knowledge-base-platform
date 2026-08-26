@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "kb-filings"
     opensearch_url: str = "http://localhost:9200"
+    log_level: str = "INFO"
 
 
 def get_settings() -> Settings:

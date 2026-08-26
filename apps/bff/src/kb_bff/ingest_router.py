@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -21,6 +22,9 @@ from kb_ingestion.infrastructure.raw_download import (
 from pydantic import BaseModel, Field
 
 from kb_bff.auth_deps import require_roles_dep
+from kb_bff.logging_utils import get_logger, log_event
+
+_log = get_logger("kb_bff.ingest")
 
 
 class IngestRequest(BaseModel):
@@ -70,10 +74,25 @@ async def create_ingest(
 ) -> dict[str, object]:
     forms = tuple(part.strip() for part in body.form_types if part.strip())
     if not forms:
+        log_event(
+            _log,
+            logging.WARNING,
+            "ingest.reject",
+            cik=body.cik,
+            reason="empty_form_types",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="form_types must include at least one form",
         )
+    log_event(
+        _log,
+        logging.INFO,
+        "ingest.start",
+        cik=body.cik,
+        force=body.force,
+        forms=",".join(forms),
+    )
     try:
         result = await use_case.execute(
             IngestFilingCommand(
@@ -83,17 +102,42 @@ async def create_ingest(
             )
         )
     except ValueError as exc:
+        log_event(
+            _log,
+            logging.WARNING,
+            "ingest.error",
+            cik=body.cik,
+            status=400,
+            error=str(exc),
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:  # noqa: BLE001 — surface upstream EDGAR/OpenAI failures
+        log_event(
+            _log,
+            logging.ERROR,
+            "ingest.error",
+            cik=body.cik,
+            status=502,
+            error=type(exc).__name__,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Ingest failed: {exc}",
         ) from exc
 
     accession = str(result.accession_no)
+    log_event(
+        _log,
+        logging.INFO,
+        "ingest.success",
+        cik=body.cik,
+        accession_no=accession,
+        skipped=result.skipped,
+        chunk_count=result.chunk_count,
+    )
     return {
         "accession_no": accession,
         "skipped": result.skipped,
@@ -117,16 +161,37 @@ async def download_filing_raw(
             accession_no=accession_no,
         )
     except RawFilingNotFoundError as exc:
+        log_event(
+            _log,
+            logging.WARNING,
+            "ingest.raw_missing",
+            accession_no=accession_no,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Filing not found: {accession_no}",
         ) from exc
     except ValueError as exc:
+        log_event(
+            _log,
+            logging.WARNING,
+            "ingest.raw_error",
+            accession_no=accession_no,
+            error=str(exc),
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
 
+    log_event(
+        _log,
+        logging.INFO,
+        "ingest.raw_download",
+        accession_no=accession_no,
+        bytes=len(body),
+        filename=filename,
+    )
     return Response(
         content=body,
         media_type="text/html; charset=utf-8",

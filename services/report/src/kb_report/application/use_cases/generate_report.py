@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from kb_report.application.ports import (
@@ -11,6 +12,8 @@ from kb_report.application.ports import (
     StoredReport,
 )
 from kb_report.domain.templates import get_template
+
+_log = logging.getLogger("kb_report.generate_report")
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,36 +35,57 @@ class GenerateReport:
         self._reports = reports
 
     async def execute(self, command: GenerateReportCommand) -> GenerateReportResult:
-        template = get_template(command.template_id)
-        section_results: list[ReportSectionResult] = []
-        for spec, question in template.render_questions(
-            company=command.company, period=command.period
-        ):
-            answered = await self._answers.answer(question)
-            section_results.append(
-                ReportSectionResult(
-                    section_id=spec.section_id,
-                    title=spec.title,
-                    question=question,
-                    body=answered.text,
-                    citations=answered.citations,
+        _log.info(
+            "event=generate_report.start user_id=%s template_id=%s company=%s period=%s",
+            command.user_id,
+            command.template_id,
+            command.company,
+            command.period,
+        )
+        try:
+            template = get_template(command.template_id)
+            section_results: list[ReportSectionResult] = []
+            for spec, question in template.render_questions(
+                company=command.company, period=command.period
+            ):
+                answered = await self._answers.answer(question)
+                section_results.append(
+                    ReportSectionResult(
+                        section_id=spec.section_id,
+                        title=spec.title,
+                        question=question,
+                        body=answered.text,
+                        citations=answered.citations,
+                    )
                 )
+            markdown = _assemble_markdown(
+                template.title, command.company, command.period, section_results
             )
-        markdown = _assemble_markdown(
-            template.title, command.company, command.period, section_results
-        )
-        report = StoredReport(
-            report_id=StoredReport.new_id(),
-            user_id=command.user_id,
-            template_id=template.template_id,
-            title=template.title,
-            company=command.company,
-            period=command.period,
-            markdown=markdown,
-            sections=tuple(section_results),
-        )
-        await self._reports.save(report)
-        return GenerateReportResult(report=report)
+            report = StoredReport(
+                report_id=StoredReport.new_id(),
+                user_id=command.user_id,
+                template_id=template.template_id,
+                title=template.title,
+                company=command.company,
+                period=command.period,
+                markdown=markdown,
+                sections=tuple(section_results),
+            )
+            await self._reports.save(report)
+            _log.info(
+                "event=generate_report.success user_id=%s report_id=%s sections=%s",
+                command.user_id,
+                report.report_id,
+                len(report.sections),
+            )
+            return GenerateReportResult(report=report)
+        except Exception:
+            _log.exception(
+                "event=generate_report.error user_id=%s template_id=%s",
+                command.user_id,
+                command.template_id,
+            )
+            raise
 
 
 def _assemble_markdown(

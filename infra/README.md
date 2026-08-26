@@ -53,6 +53,7 @@ question. `GET /healthz` reports `postgres_ok` / `minio_ok` / `opensearch_ok`
 readiness flags when `data_plane` is `compose`.
 
 Default app auth for local BFF: `AUTH_MODE=dev_bypass` (see repo `.env.example`).
+BFF log verbosity: `LOG_LEVEL=INFO` (use `DEBUG` to include `/healthz` access lines).
 
 Integration tests (optional, hit the live services above):
 
