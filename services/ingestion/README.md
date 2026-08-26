@@ -7,16 +7,25 @@ Download guide: [`docs/edgar-download-guide.md`](../../docs/edgar-download-guide
 
 ## Ingest a filing (local)
 
-Uses live SEC HTTP + **filesystem raw store** + **SQLite** + **OpenAI embeddings** (`text-embedding-3-small`).
+Uses live SEC HTTP + **filesystem raw store** + **SQLite** + embeddings
+(`EMBEDDING_PROVIDER=openai` → `text-embedding-3-small`, or
+`dashscope`/`qwen` → Alibaba `qwen3.7-text-embedding`). Vectors stay at
+`EMBEDDING_DIMENSIONS` (default 1536) to match `vector(1536)`.
 
 ```bash
 uv sync --group dev
 
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+export EMBEDDING_PROVIDER=openai   # or dashscope / qwen
 export OPENAI_API_KEY="sk-..."
 # Optional OpenAI-compatible gateway:
 # export OPENAI_BASE_URL=https://your-proxy.example/v1
 # export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# Alibaba DashScope / Qwen (instead of OpenAI embeddings):
+# export EMBEDDING_PROVIDER=dashscope
+# export DASHSCOPE_API_KEY="sk-..."
+# export DASHSCOPE_EMBEDDING_MODEL=qwen3.7-text-embedding
 
 # Latest 10-K/10-Q/8-K for Apple (CIK 320193)
 uv run kb-ingest --cik 320193
@@ -51,7 +60,9 @@ export OPENSEARCH_URL=http://localhost:9200
 export OPENSEARCH_USERNAME=admin
 export OPENSEARCH_PASSWORD=admin
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+export EMBEDDING_PROVIDER=openai   # or dashscope / qwen
 export OPENAI_API_KEY="sk-..."
+# export DASHSCOPE_API_KEY="sk-..."  # when EMBEDDING_PROVIDER=dashscope
 
 uv run kb-ingest --cik 320193 --backend compose
 ```
@@ -64,7 +75,8 @@ succeeds; query just falls back to dense-only pgvector search.
 
 ## HTTP API + UI
 
-With BFF running (`OPENAI_API_KEY` + `SEC_USER_AGENT` set):
+With BFF running (`SEC_USER_AGENT` + embedding key set — `OPENAI_API_KEY` or
+`DASHSCOPE_API_KEY` depending on `EMBEDDING_PROVIDER`):
 
 - `POST /v1/ingest` — `{ "cik", "form_types": ["10-K"], "force": false }`
 - `GET /v1/filings/{accession_no}/raw` — download stored HTML

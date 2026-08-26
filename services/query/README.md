@@ -7,12 +7,18 @@ Hybrid RAG Q&A with citations. Spec: [`SPEC-query.md`](../../docs/develop/specs/
 Uses the same `INGEST_DATA_DIR` SQLite corpus written by `kb-ingest` / `POST /v1/ingest`.
 
 ```bash
-export OPENAI_API_KEY=sk-...
+export OPENAI_API_KEY=sk-...          # required for chat LLM
 export INGEST_DATA_DIR=data/ingestion
+export EMBEDDING_PROVIDER=openai      # or dashscope / qwen
 # Optional OpenAI-compatible gateway:
 # export OPENAI_BASE_URL=https://your-proxy.example/v1
 # export OPENAI_CHAT_MODEL=gpt-4o-mini
 # export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# Alibaba DashScope / Qwen query embeddings (chat still uses OpenAI):
+# export EMBEDDING_PROVIDER=dashscope
+# export DASHSCOPE_API_KEY=sk-...
+# export DASHSCOPE_EMBEDDING_MODEL=qwen3.7-text-embedding
 
 # After ingesting at least one filing:
 uv run uvicorn kb_bff.main:app --reload --port 8000
@@ -22,8 +28,9 @@ uv run uvicorn kb_bff.main:app --reload --port 8000
 
 Wiring: `build_local_answer_query` (SQLite) or `build_compose_answer_query`
 (pgvector dense + OpenSearch BM25, or pgvector dense-only if OpenSearch is
-unset/unreachable) depending on `KB_DATA_PLANE`. Compose also writes a
-`query_logs` row per answer via `QueryLogPort`.
+unset/unreachable) depending on `KB_DATA_PLANE`. Embeddings follow
+`EMBEDDING_PROVIDER` (OpenAI or DashScope/Qwen); chat remains OpenAI.
+Compose also writes a `query_logs` row per answer via `QueryLogPort`.
 
 ## Tests
 
