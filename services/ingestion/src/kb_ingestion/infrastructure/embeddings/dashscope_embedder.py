@@ -13,8 +13,8 @@ import httpx
 DEFAULT_MODEL = "qwen3.7-text-embedding"
 # Match the existing Postgres ``vector(1536)`` column; Qwen supports 1536.
 DEFAULT_DIMENSIONS = 1536
-DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com"
-_ENDPOINT = "/api/v1/services/embeddings/text-embedding/text-embedding"
+DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+_ENDPOINT = "/embeddings"
 _BATCH_SIZE = 20  # qwen3.7-text-embedding max texts per request
 
 
@@ -101,7 +101,13 @@ class DashScopeEmbedder:
                 f"DashScope embedding failed: code={payload.get('code')} "
                 f"message={payload.get('message')}"
             )
-        embeddings = payload.get("output", {}).get("embeddings") or []
+        items = payload.get("data", [])
+        embeddings = [item.get("embedding") for item in items if "embedding" in item]
+        if len(embeddings) != len(texts):
+            raise RuntimeError(
+                f"DashScope embedding returned {len(embeddings)} embeddings for "
+                f"{len(texts)} texts"
+            )
         ordered = sorted(embeddings, key=lambda row: int(row.get("text_index", 0)))
         return [list(row["embedding"]) for row in ordered]
 

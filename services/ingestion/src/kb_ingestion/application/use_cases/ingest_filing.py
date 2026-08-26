@@ -115,6 +115,13 @@ class IngestFiling:
             await self._chunks.replace_chunks(meta.accession_no, built)
 
             vectors = await self._embedder.embed_documents([c.text for c in built])
+            _log.info(
+                "event=ingest_filing.embedding cik=%s accession_no=%s chunk_count=%s vector_count=%s",
+                command.cik,
+                meta.accession_no,
+                len(built),
+                len(vectors),
+            )
             await self._vectors.upsert_embeddings(
                 [
                     (
