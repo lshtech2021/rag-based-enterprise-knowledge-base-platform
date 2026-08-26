@@ -71,12 +71,7 @@ export function ReportBuilder() {
       ) : null}
       {report ? (
         <section className="space-y-4 border border-line bg-paper-deep/30 p-5">
-          <div>
-            <h2 className="font-display text-2xl">{report.title}</h2>
-            <p className="text-sm text-muted">
-              {report.company} · {report.period} · {report.report_id}
-            </p>
-          </div>
+          <p className="text-sm text-muted">Report ID · {report.report_id}</p>
           <MarkdownContent markdown={report.markdown} />
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">
