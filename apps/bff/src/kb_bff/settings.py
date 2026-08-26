@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     embedding_provider: str = "openai"
     embedding_dimensions: int = 1536
     dashscope_api_key: str = ""
-    dashscope_base_url: str = "https://dashscope.aliyuncs.com"
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     dashscope_embedding_model: str = "qwen3.7-text-embedding"
     kb_data_plane: str = "local"
     database_url: str = "postgresql://kb:kb@localhost:5432/knowledge_base"

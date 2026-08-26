@@ -10,14 +10,18 @@ from kb_application_ports import ObjectStorePort
 from kb_ingestion.application.ports import EmbedderPort, FilingRepository, SearchIndexPort
 from kb_ingestion.application.use_cases.ingest_filing import IngestFiling
 from kb_ingestion.infrastructure.edgar.http_client import HttpEdgarClient
-from kb_ingestion.infrastructure.embeddings.dashscope_embedder import (
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
+    BATCH_SIZE as DASHSCOPE_BATCH_SIZE,
+)
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
     DEFAULT_DIMENSIONS as DASHSCOPE_DEFAULT_DIMENSIONS,
 )
-from kb_ingestion.infrastructure.embeddings.dashscope_embedder import (
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
     DEFAULT_MODEL as DASHSCOPE_DEFAULT_MODEL,
 )
-from kb_ingestion.infrastructure.embeddings.dashscope_embedder import (
-    DashScopeEmbedder,
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
+    require_dashscope_api_key,
+    resolve_dashscope_base_url,
 )
 from kb_ingestion.infrastructure.embeddings.hash_embedder import HashEmbedder
 from kb_ingestion.infrastructure.embeddings.openai_embedder import (
@@ -116,17 +120,20 @@ def build_dashscope_embedder(
     model: str | None = None,
     base_url: str | None = None,
     dimensions: int | None = None,
-) -> DashScopeEmbedder:
+) -> OpenAIEmbedder:
+    """DashScope/Qwen via OpenAI-compatible mode (separate credentials from chat)."""
     resolved_model = (
         model
         or os.environ.get("DASHSCOPE_EMBEDDING_MODEL", "").strip()
         or DASHSCOPE_DEFAULT_MODEL
     )
-    return DashScopeEmbedder(
-        api_key=api_key,
+    return OpenAIEmbedder(
+        api_key=require_dashscope_api_key(api_key),
         model=resolved_model,
         dimensions=resolve_embedding_dimensions(dimensions, provider="dashscope"),
-        base_url=base_url,
+        base_url=resolve_dashscope_base_url(base_url),
+        batch_size=DASHSCOPE_BATCH_SIZE,
+        api_key_env="DASHSCOPE_API_KEY",
     )
 
 

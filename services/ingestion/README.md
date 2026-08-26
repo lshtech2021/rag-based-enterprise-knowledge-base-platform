@@ -22,9 +22,10 @@ export OPENAI_API_KEY="sk-..."
 # export OPENAI_BASE_URL=https://your-proxy.example/v1
 # export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
-# Alibaba DashScope / Qwen (instead of OpenAI embeddings):
+# Alibaba DashScope / Qwen (OpenAI-compatible mode; separate client from chat):
 # export EMBEDDING_PROVIDER=dashscope
 # export DASHSCOPE_API_KEY="sk-..."
+# export DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 # export DASHSCOPE_EMBEDDING_MODEL=qwen3.7-text-embedding
 
 # Latest 10-K/10-Q/8-K for Apple (CIK 320193)

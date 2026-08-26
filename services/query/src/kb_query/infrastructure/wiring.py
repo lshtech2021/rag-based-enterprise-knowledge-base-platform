@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
+    DEFAULT_MODEL as DASHSCOPE_DEFAULT_MODEL,
+)
+from kb_ingestion.infrastructure.embeddings.dashscope_config import (
+    require_dashscope_api_key,
+    resolve_dashscope_base_url,
+)
 from kb_ingestion.infrastructure.persistence.postgres_store import PostgresKnowledgeStore
 from kb_ingestion.infrastructure.persistence.sqlite_store import SqliteKnowledgeStore
 from kb_ingestion.infrastructure.search.opensearch_index import OpenSearchChunkIndex
@@ -16,12 +23,6 @@ from kb_ingestion.infrastructure.wiring import (
 )
 from kb_query.application.use_cases.answer_query import AnswerQuery
 from kb_query.domain.citation_validator import CitationValidator
-from kb_query.infrastructure.embeddings.dashscope_query_embedder import (
-    DEFAULT_MODEL as DASHSCOPE_DEFAULT_MODEL,
-)
-from kb_query.infrastructure.embeddings.dashscope_query_embedder import (
-    DashScopeQueryEmbedder,
-)
 from kb_query.infrastructure.embeddings.openai_query_embedder import (
     DEFAULT_MODEL as OPENAI_DEFAULT_MODEL,
 )
@@ -85,12 +86,12 @@ def _build_query_embedder(
             or os.environ.get("DASHSCOPE_EMBEDDING_MODEL", "").strip()
             or DASHSCOPE_DEFAULT_MODEL
         )
-        key = (dashscope_api_key or os.environ.get("DASHSCOPE_API_KEY", "")).strip()
-        return DashScopeQueryEmbedder(
-            api_key=key or None,
+        return OpenAIQueryEmbedder(
+            api_key=require_dashscope_api_key(dashscope_api_key),
             model=model,
             dimensions=dims,
-            base_url=dashscope_base_url,
+            base_url=resolve_dashscope_base_url(dashscope_base_url),
+            api_key_env="DASHSCOPE_API_KEY",
         )
     model = (
         embedding_model
@@ -132,6 +133,7 @@ async def build_local_answer_query(
         dashscope_api_key=dashscope_api_key,
         dashscope_base_url=dashscope_base_url,
     )
+    # Chat uses OPENAI_*; embeddings may use a different provider/base_url.
     llm = OpenAIChatLLM(api_key=chat_key, model=resolved_chat_model, base_url=openai_base_url)
     use_case = AnswerQuery(
         embedder=embedder,

@@ -1,15 +1,16 @@
-"""OpenAI embeddings adapter for document vectors."""
+"""OpenAI-compatible embeddings adapter for document vectors."""
 
 from __future__ import annotations
 
 import os
 
 import httpx
+from openai import AsyncOpenAI
 
 DEFAULT_MODEL = "text-embedding-3-small"
 DEFAULT_DIMENSIONS = 1536
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
-_BATCH_SIZE = 64
+DEFAULT_BATCH_SIZE = 64
 
 
 def resolve_openai_base_url(base_url: str | None = None) -> str:
@@ -18,7 +19,7 @@ def resolve_openai_base_url(base_url: str | None = None) -> str:
 
 
 class OpenAIEmbedder:
-    """Calls OpenAI ``/v1/embeddings`` via httpx."""
+    """Calls OpenAI-compatible ``/v1/embeddings`` via the official SDK."""
 
     def __init__(
         self,
@@ -27,17 +28,29 @@ class OpenAIEmbedder:
         model: str = DEFAULT_MODEL,
         dimensions: int = DEFAULT_DIMENSIONS,
         base_url: str | None = None,
-        client: httpx.AsyncClient | None = None,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        client: AsyncOpenAI | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        api_key_env: str = "OPENAI_API_KEY",
     ) -> None:
-        key = (api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")).strip()
-        if not key:
-            raise ValueError("OPENAI_API_KEY is required for OpenAIEmbedder")
-        self._api_key = key
         self._model = model
         self._dimensions = dimensions
         self._base_url = resolve_openai_base_url(base_url)
-        self._client = client
-        self._owns_client = client is None
+        self._batch_size = max(1, batch_size)
+        if client is not None:
+            self._client = client
+            self._owns_client = False
+        else:
+            key = (api_key if api_key is not None else os.environ.get(api_key_env, "")).strip()
+            if not key:
+                raise ValueError(f"{api_key_env} is required for OpenAIEmbedder")
+            self._client = AsyncOpenAI(
+                api_key=key,
+                base_url=self._base_url,
+                http_client=http_client,
+                timeout=60.0,
+            )
+            self._owns_client = http_client is None
 
     @property
     def dimensions(self) -> int:
@@ -47,40 +60,28 @@ class OpenAIEmbedder:
     def model(self) -> str:
         return self._model
 
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
     async def aclose(self) -> None:
-        if self._owns_client and self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        if self._owns_client:
+            await self._client.close()
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        client = await self._ensure_client()
         out: list[list[float]] = []
-        for start in range(0, len(texts), _BATCH_SIZE):
-            batch = texts[start : start + _BATCH_SIZE]
-            response = await client.post(
-                f"{self._base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._model,
-                    "input": batch,
-                    "dimensions": self._dimensions,
-                },
+        for start in range(0, len(texts), self._batch_size):
+            batch = texts[start : start + self._batch_size]
+            response = await self._client.embeddings.create(
+                model=self._model,
+                input=batch,
+                dimensions=self._dimensions,
             )
-            response.raise_for_status()
-            payload = response.json()
-            data = sorted(payload["data"], key=lambda row: row["index"])
-            out.extend(row["embedding"] for row in data)
+            ordered = sorted(response.data, key=lambda row: row.index)
+            out.extend(list(row.embedding) for row in ordered)
         return out
-
-    async def _ensure_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(timeout=60.0)
-        return self._client
 
 
 def require_openai_api_key() -> str:

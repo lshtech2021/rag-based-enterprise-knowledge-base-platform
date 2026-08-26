@@ -5,32 +5,39 @@ import pytest
 from kb_ingestion.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
 
 
+def _embedding_response(rows: list[tuple[int, list[float]]]) -> dict:
+    return {
+        "object": "list",
+        "data": [
+            {"object": "embedding", "index": index, "embedding": vector}
+            for index, vector in rows
+        ],
+        "model": "text-embedding-3-small",
+        "usage": {"prompt_tokens": len(rows), "total_tokens": len(rows)},
+    }
+
+
 @pytest.mark.asyncio
 async def test_openai_embedder_batches_and_orders() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v1/embeddings"
+        assert request.url.path.endswith("/embeddings")
         return httpx.Response(
             200,
-            json={
-                "data": [
-                    {"index": 1, "embedding": [0.0, 1.0]},
-                    {"index": 0, "embedding": [1.0, 0.0]},
-                ]
-            },
+            json=_embedding_response([(1, [0.0, 1.0]), (0, [1.0, 0.0])]),
         )
 
     transport = httpx.MockTransport(handler)
-    client = httpx.AsyncClient(transport=transport, base_url="https://api.openai.com")
+    http_client = httpx.AsyncClient(transport=transport)
     embedder = OpenAIEmbedder(
         api_key="test-key",
         dimensions=2,
-        client=client,
+        http_client=http_client,
     )
     vectors = await embedder.embed_documents(["a", "b"])
     assert vectors == [[1.0, 0.0], [0.0, 1.0]]
     assert embedder.dimensions == 2
     assert embedder.model == "text-embedding-3-small"
-    await client.aclose()
+    await http_client.aclose()
 
 
 @pytest.mark.asyncio
@@ -39,23 +46,20 @@ async def test_openai_embedder_uses_custom_base_url() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(str(request.url))
-        return httpx.Response(
-            200,
-            json={"data": [{"index": 0, "embedding": [1.0, 0.0]}]},
-        )
+        return httpx.Response(200, json=_embedding_response([(0, [1.0, 0.0])]))
 
     transport = httpx.MockTransport(handler)
-    client = httpx.AsyncClient(transport=transport)
+    http_client = httpx.AsyncClient(transport=transport)
     embedder = OpenAIEmbedder(
         api_key="test-key",
         dimensions=2,
         base_url="https://llm.example.com/v1/",
-        client=client,
+        http_client=http_client,
     )
     await embedder.embed_documents(["a"])
     assert seen
     assert seen[0].startswith("https://llm.example.com/v1/embeddings")
-    await client.aclose()
+    await http_client.aclose()
 
 
 def test_openai_embedder_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,4 +86,4 @@ def test_build_openai_embedder_passes_base_url(monkeypatch: pytest.MonkeyPatch) 
         model="custom-embed",
     )
     assert embedder.model == "custom-embed"
-    assert embedder._base_url == "https://gateway.local/v1"  # noqa: SLF001
+    assert embedder.base_url == "https://gateway.local/v1"
