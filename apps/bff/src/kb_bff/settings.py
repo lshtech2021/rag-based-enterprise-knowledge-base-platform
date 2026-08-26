@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Embedding provider: openai | dashscope (alias: qwen)
     embedding_provider: str = "openai"
     embedding_dimensions: int = 1536
+    # 0 / unset → provider default (OpenAI 64, DashScope/Qwen 20)
+    embedding_batch_size: int = 0
     dashscope_api_key: str = ""
     dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     dashscope_embedding_model: str = "qwen3.7-text-embedding"

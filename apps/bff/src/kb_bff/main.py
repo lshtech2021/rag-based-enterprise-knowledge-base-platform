@@ -64,6 +64,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     openai_chat_model = settings.openai_chat_model.strip() or None
     embedding_provider = settings.embedding_provider.strip() or "openai"
     embedding_dimensions = settings.embedding_dimensions
+    embedding_batch_size = (
+        settings.embedding_batch_size if settings.embedding_batch_size > 0 else None
+    )
     dashscope_api_key = settings.dashscope_api_key.strip() or None
     dashscope_base_url = settings.dashscope_base_url.strip() or None
     dashscope_embedding_model = settings.dashscope_embedding_model.strip() or None
@@ -82,6 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     opensearch_password=settings.opensearch_password,
                     embedding_provider=embedding_provider,
                     embedding_dimensions=embedding_dimensions,
+                    embedding_batch_size=embedding_batch_size,
                     openai_api_key=openai_api_key,
                     openai_base_url=openai_base_url,
                     openai_embedding_model=openai_embedding_model,
@@ -95,6 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     data_dir=data_dir,
                     embedding_provider=embedding_provider,
                     embedding_dimensions=embedding_dimensions,
+                    embedding_batch_size=embedding_batch_size,
                     openai_api_key=openai_api_key,
                     openai_base_url=openai_base_url,
                     openai_embedding_model=openai_embedding_model,

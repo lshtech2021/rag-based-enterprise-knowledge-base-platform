@@ -131,6 +131,7 @@ def test_resolve_embedding_provider_aliases(monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_build_dashscope_embedder_passes_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
     embedder = build_dashscope_embedder(
         model="qwen3.7-text-embedding",
         base_url="https://dashscope.example.com/compatible-mode/v1",
@@ -140,3 +141,26 @@ def test_build_dashscope_embedder_passes_model(monkeypatch: pytest.MonkeyPatch) 
     assert embedder.model == "qwen3.7-text-embedding"
     assert embedder.dimensions == 1536
     assert embedder.base_url == "https://dashscope.example.com/compatible-mode/v1"
+    assert embedder.batch_size == 20
+
+
+def test_resolve_embedding_batch_size_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.wiring import resolve_embedding_batch_size
+
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    assert resolve_embedding_batch_size(provider="openai") == 64
+    assert resolve_embedding_batch_size(provider="dashscope") == 20
+    assert resolve_embedding_batch_size(10, provider="dashscope") == 10
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", "15")
+    assert resolve_embedding_batch_size(provider="openai") == 15
+
+
+def test_build_openai_embedder_respects_batch_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.wiring import build_openai_embedder
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    defaulted = build_openai_embedder()
+    assert defaulted.batch_size == 64
+    custom = build_openai_embedder(batch_size=8)
+    assert custom.batch_size == 8

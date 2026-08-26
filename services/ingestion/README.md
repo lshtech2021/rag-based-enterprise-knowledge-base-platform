@@ -10,7 +10,9 @@ Download guide: [`docs/edgar-download-guide.md`](../../docs/edgar-download-guide
 Uses live SEC HTTP + **filesystem raw store** + **SQLite** + embeddings
 (`EMBEDDING_PROVIDER=openai` → `text-embedding-3-small`, or
 `dashscope`/`qwen` → Alibaba `qwen3.7-text-embedding`). Vectors stay at
-`EMBEDDING_DIMENSIONS` (default 1536) to match `vector(1536)`.
+`EMBEDDING_DIMENSIONS` (default 1536) to match `vector(1536)`. Document
+batch size via `EMBEDDING_BATCH_SIZE` (defaults: OpenAI 64, DashScope 20;
+Qwen models often require ≤20).
 
 ```bash
 uv sync --group dev

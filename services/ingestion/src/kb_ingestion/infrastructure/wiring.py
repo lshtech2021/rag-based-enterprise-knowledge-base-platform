@@ -11,7 +11,7 @@ from kb_ingestion.application.ports import EmbedderPort, FilingRepository, Searc
 from kb_ingestion.application.use_cases.ingest_filing import IngestFiling
 from kb_ingestion.infrastructure.edgar.http_client import HttpEdgarClient
 from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    BATCH_SIZE as DASHSCOPE_BATCH_SIZE,
+    BATCH_SIZE as DASHSCOPE_DEFAULT_BATCH_SIZE,
 )
 from kb_ingestion.infrastructure.embeddings.dashscope_config import (
     DEFAULT_DIMENSIONS as DASHSCOPE_DEFAULT_DIMENSIONS,
@@ -24,6 +24,9 @@ from kb_ingestion.infrastructure.embeddings.dashscope_config import (
     resolve_dashscope_base_url,
 )
 from kb_ingestion.infrastructure.embeddings.hash_embedder import HashEmbedder
+from kb_ingestion.infrastructure.embeddings.openai_embedder import (
+    DEFAULT_BATCH_SIZE as OPENAI_DEFAULT_BATCH_SIZE,
+)
 from kb_ingestion.infrastructure.embeddings.openai_embedder import (
     DEFAULT_DIMENSIONS as OPENAI_DEFAULT_DIMENSIONS,
 )
@@ -93,12 +96,31 @@ def resolve_embedding_dimensions(
     return OPENAI_DEFAULT_DIMENSIONS if provider == "openai" else DASHSCOPE_DEFAULT_DIMENSIONS
 
 
+def resolve_embedding_batch_size(
+    batch_size: int | None = None, *, provider: str
+) -> int:
+    """Resolve texts-per-request limit; models differ (e.g. Qwen ≤20)."""
+    if batch_size is not None and batch_size > 0:
+        return batch_size
+    env = os.environ.get("EMBEDDING_BATCH_SIZE", "").strip()
+    if env:
+        value = int(env)
+        if value > 0:
+            return value
+    return (
+        OPENAI_DEFAULT_BATCH_SIZE
+        if provider == "openai"
+        else DASHSCOPE_DEFAULT_BATCH_SIZE
+    )
+
+
 def build_openai_embedder(
     *,
     api_key: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
     dimensions: int | None = None,
+    batch_size: int | None = None,
 ) -> OpenAIEmbedder:
     key = api_key if api_key is not None else require_openai_api_key()
     resolved_model = (
@@ -111,6 +133,7 @@ def build_openai_embedder(
         model=resolved_model,
         dimensions=resolve_embedding_dimensions(dimensions, provider="openai"),
         base_url=base_url,
+        batch_size=resolve_embedding_batch_size(batch_size, provider="openai"),
     )
 
 
@@ -120,6 +143,7 @@ def build_dashscope_embedder(
     model: str | None = None,
     base_url: str | None = None,
     dimensions: int | None = None,
+    batch_size: int | None = None,
 ) -> OpenAIEmbedder:
     """DashScope/Qwen via OpenAI-compatible mode (separate credentials from chat)."""
     resolved_model = (
@@ -132,7 +156,7 @@ def build_dashscope_embedder(
         model=resolved_model,
         dimensions=resolve_embedding_dimensions(dimensions, provider="dashscope"),
         base_url=resolve_dashscope_base_url(base_url),
-        batch_size=DASHSCOPE_BATCH_SIZE,
+        batch_size=resolve_embedding_batch_size(batch_size, provider="dashscope"),
         api_key_env="DASHSCOPE_API_KEY",
     )
 
@@ -145,6 +169,7 @@ def build_local_ingest(
     require_openai: bool = True,
     embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
+    embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
@@ -162,6 +187,7 @@ def build_local_ingest(
         require_openai=require_openai,
         embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
+        embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
@@ -198,6 +224,7 @@ def build_memory_ingest(
     require_openai: bool = True,
     embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
+    embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
@@ -214,6 +241,7 @@ def build_memory_ingest(
         require_openai=require_openai,
         embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
+        embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
@@ -256,6 +284,7 @@ async def build_compose_ingest(
     require_openai: bool = True,
     embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
+    embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
@@ -308,6 +337,7 @@ async def build_compose_ingest(
         require_openai=require_openai,
         embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
+        embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
@@ -352,6 +382,7 @@ def _resolve_embedder(
     require_openai: bool,
     embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
+    embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
@@ -372,6 +403,7 @@ def _resolve_embedder(
             model=dashscope_embedding_model,
             base_url=dashscope_base_url,
             dimensions=embedding_dimensions,
+            batch_size=embedding_batch_size,
         )
         return _ResolvedEmbedder(embedder=dashscope, label=f"dashscope:{dashscope.model}")
     openai = build_openai_embedder(
@@ -379,5 +411,6 @@ def _resolve_embedder(
         model=openai_embedding_model,
         base_url=openai_base_url,
         dimensions=embedding_dimensions,
+        batch_size=embedding_batch_size,
     )
     return _ResolvedEmbedder(embedder=openai, label=f"openai:{openai.model}")

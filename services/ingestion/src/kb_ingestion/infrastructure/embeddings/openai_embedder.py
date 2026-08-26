@@ -64,6 +64,10 @@ class OpenAIEmbedder:
     def base_url(self) -> str:
         return self._base_url
 
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
     async def aclose(self) -> None:
         if self._owns_client:
             await self._client.close()
