@@ -14,14 +14,9 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str = "gpt-4o-mini"
-    # Embedding provider: openai | dashscope (alias: qwen)
-    embedding_provider: str = "openai"
     embedding_dimensions: int = 1536
-    # 0 / unset → provider default (OpenAI 64, DashScope/Qwen 20)
+    # 0 / unset → default 64 (override for models with smaller max batch)
     embedding_batch_size: int = 0
-    dashscope_api_key: str = ""
-    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    dashscope_embedding_model: str = "qwen3.7-text-embedding"
     kb_data_plane: str = "local"
     database_url: str = "postgresql://kb:kb@localhost:5432/knowledge_base"
     minio_endpoint: str = "localhost:9000"

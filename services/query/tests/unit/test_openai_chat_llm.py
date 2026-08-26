@@ -104,7 +104,7 @@ async def test_chat_and_embeddings_use_different_base_urls() -> None:
             json={
                 "object": "list",
                 "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2]}],
-                "model": "qwen3.7-text-embedding",
+                "model": "text-embedding-3-small",
                 "usage": {"prompt_tokens": 1, "total_tokens": 1},
             },
         )
@@ -118,17 +118,14 @@ async def test_chat_and_embeddings_use_different_base_urls() -> None:
     )
     embedder = OpenAIQueryEmbedder(
         api_key="embed-key",
-        base_url="https://embed.example.com/compatible-mode/v1",
+        base_url="https://embed.example.com/v1",
         dimensions=2,
         http_client=embed_http,
-        api_key_env="DASHSCOPE_API_KEY",
     )
     await llm.rewrite("hello")
     await embedder.embed_query("hello")
     assert chat_seen[0].startswith("https://chat.example.com/v1/chat/completions")
-    assert embed_seen[0].startswith(
-        "https://embed.example.com/compatible-mode/v1/embeddings"
-    )
+    assert embed_seen[0].startswith("https://embed.example.com/v1/embeddings")
     assert llm.base_url != embedder.base_url
     await chat_http.aclose()
     await embed_http.aclose()

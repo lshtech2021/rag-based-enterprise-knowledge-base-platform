@@ -7,28 +7,20 @@ Download guide: [`docs/edgar-download-guide.md`](../../docs/edgar-download-guide
 
 ## Ingest a filing (local)
 
-Uses live SEC HTTP + **filesystem raw store** + **SQLite** + embeddings
-(`EMBEDDING_PROVIDER=openai` → `text-embedding-3-small`, or
-`dashscope`/`qwen` → Alibaba `qwen3.7-text-embedding`). Vectors stay at
-`EMBEDDING_DIMENSIONS` (default 1536) to match `vector(1536)`. Document
-batch size via `EMBEDDING_BATCH_SIZE` (defaults: OpenAI 64, DashScope 20;
-Qwen models often require ≤20).
+Uses live SEC HTTP + **filesystem raw store** + **SQLite** + OpenAI-compatible
+embeddings (`OPENAI_EMBEDDING_MODEL`, default `text-embedding-3-small`). Vectors
+stay at `EMBEDDING_DIMENSIONS` (default 1536) to match `vector(1536)`. Document
+batch size via `EMBEDDING_BATCH_SIZE` (default 64).
 
 ```bash
 uv sync --group dev
 
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
-export EMBEDDING_PROVIDER=openai   # or dashscope / qwen
 export OPENAI_API_KEY="sk-..."
 # Optional OpenAI-compatible gateway:
 # export OPENAI_BASE_URL=https://your-proxy.example/v1
 # export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-
-# Alibaba DashScope / Qwen (OpenAI-compatible mode; separate client from chat):
-# export EMBEDDING_PROVIDER=dashscope
-# export DASHSCOPE_API_KEY="sk-..."
-# export DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-# export DASHSCOPE_EMBEDDING_MODEL=qwen3.7-text-embedding
+# export EMBEDDING_BATCH_SIZE=64
 
 # Latest 10-K/10-Q/8-K for Apple (CIK 320193)
 uv run kb-ingest --cik 320193
@@ -63,9 +55,7 @@ export OPENSEARCH_URL=http://localhost:9200
 export OPENSEARCH_USERNAME=admin
 export OPENSEARCH_PASSWORD=admin
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
-export EMBEDDING_PROVIDER=openai   # or dashscope / qwen
 export OPENAI_API_KEY="sk-..."
-# export DASHSCOPE_API_KEY="sk-..."  # when EMBEDDING_PROVIDER=dashscope
 
 uv run kb-ingest --cik 320193 --backend compose
 ```
@@ -78,8 +68,7 @@ succeeds; query just falls back to dense-only pgvector search.
 
 ## HTTP API + UI
 
-With BFF running (`SEC_USER_AGENT` + embedding key set — `OPENAI_API_KEY` or
-`DASHSCOPE_API_KEY` depending on `EMBEDDING_PROVIDER`):
+With BFF running (`SEC_USER_AGENT` + `OPENAI_API_KEY`):
 
 - `POST /v1/ingest` — `{ "cik", "form_types": ["10-K"], "force": false }`
 - `GET /v1/filings/{accession_no}/raw` — download stored HTML
@@ -88,8 +77,6 @@ With BFF running (`SEC_USER_AGENT` + embedding key set — `OPENAI_API_KEY` or
 ## Tests / Dagster
 
 ```bash
-uv run pytest services/ingestion apps/bff/tests/test_ingest.py -q
-# uv run dagster dev -f services/ingestion/src/kb_ingestion/presentation/definitions.py
+uv run pytest services/ingestion -q
+uv run dagster dev -f services/ingestion/src/kb_ingestion/presentation/definitions.py
 ```
-
-Layers: `application` / `domain` / `infrastructure` / `presentation`.

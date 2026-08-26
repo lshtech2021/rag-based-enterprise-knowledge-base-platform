@@ -87,3 +87,24 @@ def test_build_openai_embedder_passes_base_url(monkeypatch: pytest.MonkeyPatch) 
     )
     assert embedder.model == "custom-embed"
     assert embedder.base_url == "https://gateway.local/v1"
+
+
+def test_resolve_embedding_batch_size_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.wiring import resolve_embedding_batch_size
+
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    assert resolve_embedding_batch_size() == 64
+    assert resolve_embedding_batch_size(10) == 10
+    monkeypatch.setenv("EMBEDDING_BATCH_SIZE", "15")
+    assert resolve_embedding_batch_size() == 15
+
+
+def test_build_openai_embedder_respects_batch_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.wiring import build_openai_embedder
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("EMBEDDING_BATCH_SIZE", raising=False)
+    defaulted = build_openai_embedder()
+    assert defaulted.batch_size == 64
+    custom = build_openai_embedder(batch_size=8)
+    assert custom.batch_size == 8

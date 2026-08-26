@@ -52,24 +52,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if getattr(app.state, "object_store", None) is None and plane != "compose":
         app.state.object_store = LocalFilesystemObjectStore(data_dir / "raw")
 
-    has_embed_key = bool(
-        settings.dashscope_api_key.strip()
-        if (settings.embedding_provider or "openai").strip().lower() in {"dashscope", "qwen"}
-        else settings.openai_api_key.strip()
-    )
-    has_keys = bool(settings.sec_user_agent.strip() and has_embed_key)
+    has_keys = bool(settings.sec_user_agent.strip() and settings.openai_api_key.strip())
     openai_api_key = settings.openai_api_key.strip() or None
     openai_base_url = settings.openai_base_url.strip() or None
     openai_embedding_model = settings.openai_embedding_model.strip() or None
     openai_chat_model = settings.openai_chat_model.strip() or None
-    embedding_provider = settings.embedding_provider.strip() or "openai"
     embedding_dimensions = settings.embedding_dimensions
     embedding_batch_size = (
         settings.embedding_batch_size if settings.embedding_batch_size > 0 else None
     )
-    dashscope_api_key = settings.dashscope_api_key.strip() or None
-    dashscope_base_url = settings.dashscope_base_url.strip() or None
-    dashscope_embedding_model = settings.dashscope_embedding_model.strip() or None
     if getattr(app.state, "ingest_filing", None) is None and has_keys:
         try:
             if plane == "compose":
@@ -83,29 +74,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     opensearch_url=settings.opensearch_url,
                     opensearch_username=settings.opensearch_username,
                     opensearch_password=settings.opensearch_password,
-                    embedding_provider=embedding_provider,
                     embedding_dimensions=embedding_dimensions,
                     embedding_batch_size=embedding_batch_size,
                     openai_api_key=openai_api_key,
                     openai_base_url=openai_base_url,
                     openai_embedding_model=openai_embedding_model,
-                    dashscope_api_key=dashscope_api_key,
-                    dashscope_base_url=dashscope_base_url,
-                    dashscope_embedding_model=dashscope_embedding_model,
                 )
             else:
                 ingest_runtime = build_local_ingest(
                     user_agent=settings.sec_user_agent.strip(),
                     data_dir=data_dir,
-                    embedding_provider=embedding_provider,
                     embedding_dimensions=embedding_dimensions,
                     embedding_batch_size=embedding_batch_size,
                     openai_api_key=openai_api_key,
                     openai_base_url=openai_base_url,
                     openai_embedding_model=openai_embedding_model,
-                    dashscope_api_key=dashscope_api_key,
-                    dashscope_base_url=dashscope_base_url,
-                    dashscope_embedding_model=dashscope_embedding_model,
                 )
             app.state.ingest_filing = ingest_runtime.use_case
             app.state.filing_repository = ingest_runtime.filings
@@ -116,7 +99,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 logging.INFO,
                 "lifespan.ingest_wired",
                 data_plane=plane,
-                embedding_provider=embedding_provider,
                 embedder=ingest_runtime.embedder_label,
             )
         except Exception as exc:
@@ -129,14 +111,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             )
             raise
 
-    # Chat LLM still uses OpenAI; embeddings may be DashScope/Qwen.
     if getattr(app.state, "answer_query", None) is None and settings.openai_api_key.strip():
         try:
-            embed_model_for_query = (
-                dashscope_embedding_model
-                if embedding_provider.lower() in {"dashscope", "qwen"}
-                else openai_embedding_model
-            )
             if plane == "compose":
                 query_runtime = await build_compose_answer_query(
                     database_url=settings.database_url,
@@ -145,11 +121,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     opensearch_password=settings.opensearch_password,
                     openai_api_key=settings.openai_api_key.strip(),
                     openai_base_url=openai_base_url,
-                    embedding_provider=embedding_provider,
-                    embedding_model=embed_model_for_query,
+                    embedding_model=openai_embedding_model,
                     embedding_dimensions=embedding_dimensions,
-                    dashscope_api_key=dashscope_api_key,
-                    dashscope_base_url=dashscope_base_url,
                     chat_model=openai_chat_model,
                 )
             else:
@@ -157,11 +130,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     data_dir=data_dir,
                     openai_api_key=settings.openai_api_key.strip(),
                     openai_base_url=openai_base_url,
-                    embedding_provider=embedding_provider,
-                    embedding_model=embed_model_for_query,
+                    embedding_model=openai_embedding_model,
                     embedding_dimensions=embedding_dimensions,
-                    dashscope_api_key=dashscope_api_key,
-                    dashscope_base_url=dashscope_base_url,
                     chat_model=openai_chat_model,
                 )
             app.state.answer_query = query_runtime.use_case

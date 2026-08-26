@@ -7,20 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    DEFAULT_MODEL as DASHSCOPE_DEFAULT_MODEL,
-)
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    require_dashscope_api_key,
-    resolve_dashscope_base_url,
-)
 from kb_ingestion.infrastructure.persistence.postgres_store import PostgresKnowledgeStore
 from kb_ingestion.infrastructure.persistence.sqlite_store import SqliteKnowledgeStore
 from kb_ingestion.infrastructure.search.opensearch_index import OpenSearchChunkIndex
-from kb_ingestion.infrastructure.wiring import (
-    resolve_embedding_dimensions,
-    resolve_embedding_provider,
-)
+from kb_ingestion.infrastructure.wiring import resolve_embedding_dimensions
 from kb_query.application.use_cases.answer_query import AnswerQuery
 from kb_query.domain.citation_validator import CitationValidator
 from kb_query.infrastructure.embeddings.openai_query_embedder import (
@@ -70,29 +60,12 @@ def _resolve_chat_model(chat_model: str | None) -> str:
 
 def _build_query_embedder(
     *,
-    embedding_provider: str | None,
     embedding_model: str | None,
     embedding_dimensions: int | None,
     openai_api_key: str | None,
     openai_base_url: str | None,
-    dashscope_api_key: str | None,
-    dashscope_base_url: str | None,
 ) -> QueryEmbedder:
-    provider = resolve_embedding_provider(embedding_provider)
-    dims = resolve_embedding_dimensions(embedding_dimensions, provider=provider)
-    if provider == "dashscope":
-        model = (
-            embedding_model
-            or os.environ.get("DASHSCOPE_EMBEDDING_MODEL", "").strip()
-            or DASHSCOPE_DEFAULT_MODEL
-        )
-        return OpenAIQueryEmbedder(
-            api_key=require_dashscope_api_key(dashscope_api_key),
-            model=model,
-            dimensions=dims,
-            base_url=resolve_dashscope_base_url(dashscope_base_url),
-            api_key_env="DASHSCOPE_API_KEY",
-        )
+    dims = resolve_embedding_dimensions(embedding_dimensions)
     model = (
         embedding_model
         or os.environ.get("OPENAI_EMBEDDING_MODEL", "").strip()
@@ -111,11 +84,8 @@ async def build_local_answer_query(
     data_dir: Path,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
-    embedding_provider: str | None = None,
     embedding_model: str | None = None,
     embedding_dimensions: int | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
     chat_model: str | None = None,
 ) -> QueryRuntime:
     """Load SQLite corpus and wire embedder + OpenAI chat LLM for local demo."""
@@ -125,15 +95,11 @@ async def build_local_answer_query(
     store = SqliteKnowledgeStore(Path(data_dir) / "ingestion.sqlite3")
     corpus = await store.list_retrieval_corpus()
     embedder = _build_query_embedder(
-        embedding_provider=embedding_provider,
         embedding_model=embedding_model,
         embedding_dimensions=embedding_dimensions,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
-        dashscope_api_key=dashscope_api_key,
-        dashscope_base_url=dashscope_base_url,
     )
-    # Chat uses OPENAI_*; embeddings may use a different provider/base_url.
     llm = OpenAIChatLLM(api_key=chat_key, model=resolved_chat_model, base_url=openai_base_url)
     use_case = AnswerQuery(
         embedder=embedder,
@@ -159,11 +125,8 @@ async def build_compose_answer_query(
     opensearch_url: str | None = None,
     opensearch_username: str | None = None,
     opensearch_password: str | None = None,
-    embedding_provider: str | None = None,
     embedding_model: str | None = None,
     embedding_dimensions: int | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
     chat_model: str | None = None,
 ) -> QueryRuntime:
     """Wire embedder + chat LLM + pgvector dense + optional OpenSearch BM25."""
@@ -199,13 +162,10 @@ async def build_compose_answer_query(
     except Exception:  # noqa: BLE001
         retriever = DenseOnlyRetriever(dense=store)
     embedder = _build_query_embedder(
-        embedding_provider=embedding_provider,
         embedding_model=embedding_model,
         embedding_dimensions=embedding_dimensions,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
-        dashscope_api_key=dashscope_api_key,
-        dashscope_base_url=dashscope_base_url,
     )
     llm = OpenAIChatLLM(api_key=chat_key, model=resolved_chat_model, base_url=openai_base_url)
     use_case = AnswerQuery(

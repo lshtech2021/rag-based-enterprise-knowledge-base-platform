@@ -10,19 +10,6 @@ from kb_application_ports import ObjectStorePort
 from kb_ingestion.application.ports import EmbedderPort, FilingRepository, SearchIndexPort
 from kb_ingestion.application.use_cases.ingest_filing import IngestFiling
 from kb_ingestion.infrastructure.edgar.http_client import HttpEdgarClient
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    BATCH_SIZE as DASHSCOPE_DEFAULT_BATCH_SIZE,
-)
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    DEFAULT_DIMENSIONS as DASHSCOPE_DEFAULT_DIMENSIONS,
-)
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    DEFAULT_MODEL as DASHSCOPE_DEFAULT_MODEL,
-)
-from kb_ingestion.infrastructure.embeddings.dashscope_config import (
-    require_dashscope_api_key,
-    resolve_dashscope_base_url,
-)
 from kb_ingestion.infrastructure.embeddings.hash_embedder import HashEmbedder
 from kb_ingestion.infrastructure.embeddings.openai_embedder import (
     DEFAULT_BATCH_SIZE as OPENAI_DEFAULT_BATCH_SIZE,
@@ -76,30 +63,17 @@ class IngestRuntime:
     vector_store: PgVectorStore | None = None
 
 
-def resolve_embedding_provider(provider: str | None = None) -> str:
-    raw = (provider or os.environ.get("EMBEDDING_PROVIDER", "openai")).strip().lower()
-    if raw in {"openai", "dashscope", "qwen"}:
-        return "dashscope" if raw == "qwen" else raw
-    raise ValueError(
-        f"Unsupported EMBEDDING_PROVIDER={raw!r}; expected 'openai' or 'dashscope'"
-    )
-
-
-def resolve_embedding_dimensions(
-    dimensions: int | None = None, *, provider: str
-) -> int:
+def resolve_embedding_dimensions(dimensions: int | None = None) -> int:
     if dimensions is not None and dimensions > 0:
         return dimensions
     env = os.environ.get("EMBEDDING_DIMENSIONS", "").strip()
     if env:
         return int(env)
-    return OPENAI_DEFAULT_DIMENSIONS if provider == "openai" else DASHSCOPE_DEFAULT_DIMENSIONS
+    return OPENAI_DEFAULT_DIMENSIONS
 
 
-def resolve_embedding_batch_size(
-    batch_size: int | None = None, *, provider: str
-) -> int:
-    """Resolve texts-per-request limit; models differ (e.g. Qwen ≤20)."""
+def resolve_embedding_batch_size(batch_size: int | None = None) -> int:
+    """Resolve texts-per-request limit (models differ; override via EMBEDDING_BATCH_SIZE)."""
     if batch_size is not None and batch_size > 0:
         return batch_size
     env = os.environ.get("EMBEDDING_BATCH_SIZE", "").strip()
@@ -107,11 +81,7 @@ def resolve_embedding_batch_size(
         value = int(env)
         if value > 0:
             return value
-    return (
-        OPENAI_DEFAULT_BATCH_SIZE
-        if provider == "openai"
-        else DASHSCOPE_DEFAULT_BATCH_SIZE
-    )
+    return OPENAI_DEFAULT_BATCH_SIZE
 
 
 def build_openai_embedder(
@@ -131,33 +101,9 @@ def build_openai_embedder(
     return OpenAIEmbedder(
         api_key=key,
         model=resolved_model,
-        dimensions=resolve_embedding_dimensions(dimensions, provider="openai"),
+        dimensions=resolve_embedding_dimensions(dimensions),
         base_url=base_url,
-        batch_size=resolve_embedding_batch_size(batch_size, provider="openai"),
-    )
-
-
-def build_dashscope_embedder(
-    *,
-    api_key: str | None = None,
-    model: str | None = None,
-    base_url: str | None = None,
-    dimensions: int | None = None,
-    batch_size: int | None = None,
-) -> OpenAIEmbedder:
-    """DashScope/Qwen via OpenAI-compatible mode (separate credentials from chat)."""
-    resolved_model = (
-        model
-        or os.environ.get("DASHSCOPE_EMBEDDING_MODEL", "").strip()
-        or DASHSCOPE_DEFAULT_MODEL
-    )
-    return OpenAIEmbedder(
-        api_key=require_dashscope_api_key(api_key),
-        model=resolved_model,
-        dimensions=resolve_embedding_dimensions(dimensions, provider="dashscope"),
-        base_url=resolve_dashscope_base_url(base_url),
-        batch_size=resolve_embedding_batch_size(batch_size, provider="dashscope"),
-        api_key_env="DASHSCOPE_API_KEY",
+        batch_size=resolve_embedding_batch_size(batch_size),
     )
 
 
@@ -167,15 +113,11 @@ def build_local_ingest(
     data_dir: Path,
     embedder: EmbedderPort | None = None,
     require_openai: bool = True,
-    embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
     embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
-    dashscope_embedding_model: str | None = None,
 ) -> IngestRuntime:
     """Filesystem + SQLite persistence; live SEC HTTP client."""
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -185,15 +127,11 @@ def build_local_ingest(
     resolved = _resolve_embedder(
         embedder,
         require_openai=require_openai,
-        embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
         embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
-        dashscope_api_key=dashscope_api_key,
-        dashscope_base_url=dashscope_base_url,
-        dashscope_embedding_model=dashscope_embedding_model,
     )
     use_case = IngestFiling(
         edgar=edgar,
@@ -222,15 +160,11 @@ def build_memory_ingest(
     user_agent: str,
     embedder: EmbedderPort | None = None,
     require_openai: bool = True,
-    embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
     embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
-    dashscope_embedding_model: str | None = None,
 ) -> IngestRuntime:
     """In-memory persistence; live SEC HTTP client (useful for dry runs)."""
     edgar = HttpEdgarClient(user_agent)
@@ -239,15 +173,11 @@ def build_memory_ingest(
     resolved = _resolve_embedder(
         embedder,
         require_openai=require_openai,
-        embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
         embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
-        dashscope_api_key=dashscope_api_key,
-        dashscope_base_url=dashscope_base_url,
-        dashscope_embedding_model=dashscope_embedding_model,
     )
     use_case = IngestFiling(
         edgar=edgar,
@@ -282,15 +212,11 @@ async def build_compose_ingest(
     opensearch_password: str | None = None,
     embedder: EmbedderPort | None = None,
     require_openai: bool = True,
-    embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
     embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
-    dashscope_embedding_model: str | None = None,
 ) -> IngestRuntime:
     """MinIO + Postgres/pgvector + OpenSearch; live SEC HTTP client."""
     db_url = (database_url or os.environ.get("DATABASE_URL", "")).strip()
@@ -335,15 +261,11 @@ async def build_compose_ingest(
     resolved = _resolve_embedder(
         embedder,
         require_openai=require_openai,
-        embedding_provider=embedding_provider,
         embedding_dimensions=embedding_dimensions,
         embedding_batch_size=embedding_batch_size,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
-        dashscope_api_key=dashscope_api_key,
-        dashscope_base_url=dashscope_base_url,
-        dashscope_embedding_model=dashscope_embedding_model,
     )
     use_case = IngestFiling(
         edgar=edgar,
@@ -380,15 +302,11 @@ def _resolve_embedder(
     embedder: EmbedderPort | None,
     *,
     require_openai: bool,
-    embedding_provider: str | None = None,
     embedding_dimensions: int | None = None,
     embedding_batch_size: int | None = None,
     openai_api_key: str | None = None,
     openai_base_url: str | None = None,
     openai_embedding_model: str | None = None,
-    dashscope_api_key: str | None = None,
-    dashscope_base_url: str | None = None,
-    dashscope_embedding_model: str | None = None,
 ) -> _ResolvedEmbedder:
     if embedder is not None:
         label = getattr(embedder, "model", None) or type(embedder).__name__
@@ -396,16 +314,6 @@ def _resolve_embedder(
     if not require_openai:
         dims = embedding_dimensions or 32
         return _ResolvedEmbedder(embedder=HashEmbedder(dimensions=dims), label="hash")
-    provider = resolve_embedding_provider(embedding_provider)
-    if provider == "dashscope":
-        dashscope = build_dashscope_embedder(
-            api_key=dashscope_api_key,
-            model=dashscope_embedding_model,
-            base_url=dashscope_base_url,
-            dimensions=embedding_dimensions,
-            batch_size=embedding_batch_size,
-        )
-        return _ResolvedEmbedder(embedder=dashscope, label=f"dashscope:{dashscope.model}")
     openai = build_openai_embedder(
         api_key=openai_api_key,
         model=openai_embedding_model,
