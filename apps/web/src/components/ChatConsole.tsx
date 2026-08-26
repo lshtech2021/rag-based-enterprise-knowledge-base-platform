@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { SourcePanel } from "@/components/SourcePanel";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { SourceCitation, streamQuery } from "@/lib/bff";
 
 export function ChatConsole() {
@@ -66,10 +67,16 @@ export function ChatConsole() {
           </p>
         ) : null}
         <article
-          className="mt-8 border border-line bg-paper-deep/40 p-4 whitespace-pre-wrap"
+          className="mt-8 border border-line bg-paper-deep/40 p-4"
           aria-live="polite"
         >
-          {answer || (busy ? "Waiting for tokens…" : "Answer will stream here.")}
+          {answer ? (
+            <MarkdownContent markdown={answer} />
+          ) : busy ? (
+            "Waiting for tokens…"
+          ) : (
+            "Answer will stream here."
+          )}
         </article>
       </section>
       <SourcePanel sources={sources} />

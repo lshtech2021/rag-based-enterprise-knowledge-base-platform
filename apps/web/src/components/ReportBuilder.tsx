@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { createReport, type ReportResponse } from "@/lib/bff";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 export function ReportBuilder() {
   const [company, setCompany] = useState("Apple Inc.");
@@ -76,9 +77,7 @@ export function ReportBuilder() {
               {report.company} · {report.period} · {report.report_id}
             </p>
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-relaxed text-ink">
-            {report.markdown}
-          </pre>
+          <MarkdownContent markdown={report.markdown} />
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">
               Citations
