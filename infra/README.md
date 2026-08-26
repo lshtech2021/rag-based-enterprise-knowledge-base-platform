@@ -43,6 +43,8 @@ export MINIO_ACCESS_KEY=minioadmin
 export MINIO_SECRET_KEY=minioadmin
 export MINIO_BUCKET=kb-filings
 export OPENSEARCH_URL=http://localhost:9200
+export OPENSEARCH_USERNAME=admin
+export OPENSEARCH_PASSWORD=admin
 export OPENAI_API_KEY=sk-...
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 ```
@@ -50,7 +52,9 @@ export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 Under `compose`, the BFF also switches report persistence to Postgres +
 MinIO (`PostgresReportRepository`) and writes a `query_logs` row per answered
 question. `GET /healthz` reports `postgres_ok` / `minio_ok` / `opensearch_ok`
-readiness flags when `data_plane` is `compose`.
+readiness flags when `data_plane` is `compose`. For secured OpenSearch clusters,
+set `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` (leave username empty to skip
+basic auth against a local `DISABLE_SECURITY_PLUGIN` compose profile).
 
 Default app auth for local BFF: `AUTH_MODE=dev_bypass` (see repo `.env.example`).
 BFF log verbosity: `LOG_LEVEL=INFO` (use `DEBUG` to include `/healthz` access lines).

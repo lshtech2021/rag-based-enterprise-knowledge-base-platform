@@ -48,6 +48,8 @@ export MINIO_ENDPOINT=localhost:9000
 export MINIO_ACCESS_KEY=minioadmin
 export MINIO_SECRET_KEY=minioadmin
 export OPENSEARCH_URL=http://localhost:9200
+export OPENSEARCH_USERNAME=admin
+export OPENSEARCH_PASSWORD=admin
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 export OPENAI_API_KEY="sk-..."
 
@@ -56,8 +58,9 @@ uv run kb-ingest --cik 320193 --backend compose
 
 Stores raw HTML in MinIO, metadata/vectors in Postgres/pgvector (schema
 applied automatically on connect), and — if OpenSearch is reachable — BM25
-docs in OpenSearch. Without OpenSearch, ingestion still succeeds; query just
-falls back to dense-only pgvector search.
+docs in OpenSearch (basic auth from `OPENSEARCH_USERNAME` /
+`OPENSEARCH_PASSWORD` when username is set). Without OpenSearch, ingestion still
+succeeds; query just falls back to dense-only pgvector search.
 
 ## HTTP API + UI
 

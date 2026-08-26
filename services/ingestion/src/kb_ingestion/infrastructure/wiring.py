@@ -165,6 +165,8 @@ async def build_compose_ingest(
     minio_secret_key: str | None = None,
     minio_bucket: str | None = None,
     opensearch_url: str | None = None,
+    opensearch_username: str | None = None,
+    opensearch_password: str | None = None,
     embedder: EmbedderPort | None = None,
     require_openai: bool = True,
     openai_api_key: str | None = None,
@@ -180,6 +182,16 @@ async def build_compose_ingest(
     secret = (minio_secret_key or os.environ.get("MINIO_SECRET_KEY", "minioadmin")).strip()
     bucket = (minio_bucket or os.environ.get("MINIO_BUCKET", "kb-filings")).strip()
     os_url = (opensearch_url or os.environ.get("OPENSEARCH_URL", "http://localhost:9200")).strip()
+    os_user = (
+        opensearch_username
+        if opensearch_username is not None
+        else os.environ.get("OPENSEARCH_USERNAME", "")
+    ).strip()
+    os_password = (
+        opensearch_password
+        if opensearch_password is not None
+        else os.environ.get("OPENSEARCH_PASSWORD", "")
+    ).strip()
 
     object_store = MinioObjectStore(
         endpoint=endpoint,
@@ -193,7 +205,11 @@ async def build_compose_ingest(
     # failing wiring (query then falls back to dense-only retrieval).
     search: OpenSearchChunkIndex | None
     try:
-        search = OpenSearchChunkIndex(url=os_url)
+        search = OpenSearchChunkIndex(
+            url=os_url,
+            username=os_user or None,
+            password=os_password or None,
+        )
     except Exception:  # noqa: BLE001
         search = None
     edgar = HttpEdgarClient(user_agent)

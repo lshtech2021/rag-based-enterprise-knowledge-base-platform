@@ -68,6 +68,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     minio_secret_key=settings.minio_secret_key,
                     minio_bucket=settings.minio_bucket,
                     opensearch_url=settings.opensearch_url,
+                    opensearch_username=settings.opensearch_username,
+                    opensearch_password=settings.opensearch_password,
                     openai_api_key=openai_api_key,
                     openai_base_url=openai_base_url,
                     openai_embedding_model=openai_embedding_model,
@@ -101,6 +103,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 query_runtime = await build_compose_answer_query(
                     database_url=settings.database_url,
                     opensearch_url=settings.opensearch_url,
+                    opensearch_username=settings.opensearch_username,
+                    opensearch_password=settings.opensearch_password,
                     openai_api_key=settings.openai_api_key.strip(),
                     openai_base_url=openai_base_url,
                     embedding_model=openai_embedding_model,

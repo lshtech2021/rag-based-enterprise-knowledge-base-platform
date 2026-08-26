@@ -102,6 +102,8 @@ async def build_compose_answer_query(
     openai_base_url: str | None = None,
     database_url: str | None = None,
     opensearch_url: str | None = None,
+    opensearch_username: str | None = None,
+    opensearch_password: str | None = None,
     embedding_model: str | None = None,
     chat_model: str | None = None,
 ) -> QueryRuntime:
@@ -111,6 +113,16 @@ async def build_compose_answer_query(
     if not db_url:
         raise ValueError("DATABASE_URL is required for compose query wiring")
     os_url = (opensearch_url or os.environ.get("OPENSEARCH_URL", "http://localhost:9200")).strip()
+    os_user = (
+        opensearch_username
+        if opensearch_username is not None
+        else os.environ.get("OPENSEARCH_USERNAME", "")
+    ).strip()
+    os_password = (
+        opensearch_password
+        if opensearch_password is not None
+        else os.environ.get("OPENSEARCH_PASSWORD", "")
+    ).strip()
     resolved_embed_model, resolved_chat_model = _resolve_models(
         embedding_model=embedding_model,
         chat_model=chat_model,
@@ -122,7 +134,11 @@ async def build_compose_answer_query(
     # instead of failing wiring.
     retriever: ComposeHybridRetriever | DenseOnlyRetriever
     try:
-        search = OpenSearchChunkIndex(url=os_url)
+        search = OpenSearchChunkIndex(
+            url=os_url,
+            username=os_user or None,
+            password=os_password or None,
+        )
         retriever = ComposeHybridRetriever(dense=store, bm25=search)
     except Exception:  # noqa: BLE001
         retriever = DenseOnlyRetriever(dense=store)

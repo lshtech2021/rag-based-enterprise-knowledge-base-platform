@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from kb_domain import AccessionNumber, Chunk
@@ -61,3 +61,29 @@ async def test_opensearch_replace_and_search() -> None:
         assert hits[0][2] == "https://example.com"
     finally:
         mod.helpers.bulk = original
+
+
+def test_opensearch_passes_http_auth_from_config() -> None:
+    with patch(
+        "kb_ingestion.infrastructure.search.opensearch_index.OpenSearch"
+    ) as mock_client:
+        mock_client.return_value.indices.exists.return_value = True
+        OpenSearchChunkIndex(
+            url="https://search.example:9200",
+            username="admin",
+            password="s3cret",
+        )
+        mock_client.assert_called_once()
+        kwargs = mock_client.call_args.kwargs
+        assert kwargs["http_auth"] == ("admin", "s3cret")
+        assert kwargs["use_ssl"] is True
+
+
+def test_opensearch_skips_http_auth_when_username_empty() -> None:
+    with patch(
+        "kb_ingestion.infrastructure.search.opensearch_index.OpenSearch"
+    ) as mock_client:
+        mock_client.return_value.indices.exists.return_value = True
+        OpenSearchChunkIndex(url="http://localhost:9200", username="", password="x")
+        kwargs = mock_client.call_args.kwargs
+        assert kwargs["http_auth"] is None

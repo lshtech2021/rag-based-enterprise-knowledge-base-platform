@@ -17,19 +17,26 @@ class OpenSearchChunkIndex:
         *,
         url: str = "http://localhost:9200",
         index_name: str = "kb_chunks",
+        username: str | None = None,
+        password: str | None = None,
         client: OpenSearch | None = None,
     ) -> None:
         self._index = index_name
         if client is not None:
             self._client = client
         else:
+            user = (username or "").strip()
+            secret = (password or "").strip()
+            http_auth = (user, secret) if user else None
             self._client = OpenSearch(
                 hosts=[url],
+                http_auth=http_auth,
                 use_ssl=url.startswith("https://"),
                 verify_certs=False,
                 ssl_show_warn=False,
             )
         self._ensure_index()
+
 
     def _ensure_index(self) -> None:
         if self._client.indices.exists(index=self._index):
