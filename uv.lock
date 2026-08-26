@@ -940,6 +940,7 @@ dependencies = [
     { name = "kb-domain" },
     { name = "kb-query" },
     { name = "langgraph" },
+    { name = "psycopg", extra = ["binary", "pool"] },
 ]
 
 [package.metadata]
@@ -947,6 +948,7 @@ requires-dist = [
     { name = "kb-domain", editable = "packages/domain" },
     { name = "kb-query", editable = "services/query" },
     { name = "langgraph", specifier = ">=0.2" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2" },
 ]
 
 [[package]]

@@ -18,7 +18,10 @@ from kb_query.infrastructure.embeddings.openai_query_embedder import (
 )
 from kb_query.infrastructure.llm.openai_chat_llm import DEFAULT_CHAT_MODEL, OpenAIChatLLM
 from kb_query.infrastructure.rerank.noop_reranker import NoOpReranker
-from kb_query.infrastructure.retrieval.compose_hybrid import ComposeHybridRetriever
+from kb_query.infrastructure.retrieval.compose_hybrid import (
+    ComposeHybridRetriever,
+    DenseOnlyRetriever,
+)
 from kb_query.infrastructure.retrieval.in_memory_hybrid import InMemoryHybridRetriever
 
 
@@ -114,7 +117,15 @@ async def build_compose_answer_query(
     )
 
     store = await PostgresKnowledgeStore.connect(db_url)
-    search = OpenSearchChunkIndex(url=os_url)
+    # OpenSearch is an optional add-on: compose only *requires* Postgres +
+    # MinIO. Unset/unreachable OpenSearch degrades to dense-only retrieval
+    # instead of failing wiring.
+    retriever: ComposeHybridRetriever | DenseOnlyRetriever
+    try:
+        search = OpenSearchChunkIndex(url=os_url)
+        retriever = ComposeHybridRetriever(dense=store, bm25=search)
+    except Exception:  # noqa: BLE001
+        retriever = DenseOnlyRetriever(dense=store)
     embedder = OpenAIQueryEmbedder(
         api_key=key,
         model=resolved_embed_model,
@@ -124,10 +135,13 @@ async def build_compose_answer_query(
     llm = OpenAIChatLLM(api_key=key, model=resolved_chat_model, base_url=openai_base_url)
     use_case = AnswerQuery(
         embedder=embedder,
-        retriever=ComposeHybridRetriever(dense=store, bm25=search),
+        retriever=retriever,
         reranker=NoOpReranker(),
         llm=llm,
         validator=CitationValidator(),
+        # `store` also implements QueryLogPort.save — persists `query_logs`
+        # (architecture §7) on the same pool used for dense retrieval.
+        logs=store,
     )
     return QueryRuntime(
         use_case=use_case,

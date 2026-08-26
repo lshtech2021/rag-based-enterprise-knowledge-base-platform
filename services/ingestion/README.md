@@ -38,9 +38,15 @@ Re-run is incremental (skips if accession ≤ cursor). Force with `--force`.
 ## Ingest a filing (Compose)
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile opensearch up -d
+# Postgres + MinIO are required for compose; OpenSearch is optional (BM25)
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml --profile opensearch up -d  # optional
+
 export KB_DATA_PLANE=compose
 export DATABASE_URL=postgresql://kb:kb@localhost:5432/knowledge_base
+export MINIO_ENDPOINT=localhost:9000
+export MINIO_ACCESS_KEY=minioadmin
+export MINIO_SECRET_KEY=minioadmin
 export OPENSEARCH_URL=http://localhost:9200
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 export OPENAI_API_KEY="sk-..."
@@ -48,7 +54,10 @@ export OPENAI_API_KEY="sk-..."
 uv run kb-ingest --cik 320193 --backend compose
 ```
 
-Stores raw HTML in MinIO, metadata/vectors in Postgres/pgvector, and BM25 docs in OpenSearch.
+Stores raw HTML in MinIO, metadata/vectors in Postgres/pgvector (schema
+applied automatically on connect), and — if OpenSearch is reachable — BM25
+docs in OpenSearch. Without OpenSearch, ingestion still succeeds; query just
+falls back to dense-only pgvector search.
 
 ## HTTP API + UI
 

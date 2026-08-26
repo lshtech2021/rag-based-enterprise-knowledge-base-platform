@@ -29,8 +29,8 @@ Ingest SEC EDGAR filings for a chosen CIK (+ form types) into either the **local
 | Chunk | Paragraph-first then sentence pack; target **512** / max **768** / overlap **64** tokens |
 | Embed | `EmbedderPort` + **`OpenAIEmbedder`** (`text-embedding-3-small`, 1536-d) for live; **`HashEmbedder`** for tests |
 | Persist (local) | `LocalFilesystemObjectStore` + `SqliteKnowledgeStore` under `INGEST_DATA_DIR` |
-| Persist (compose) | `MinioObjectStore` + `PostgresKnowledgeStore` (pgvector 1536) when `KB_DATA_PLANE=compose` |
-| OpenSearch | `OpenSearchChunkIndex` (`SearchIndexPort`) for BM25 when compose; unused on local path |
+| Persist (compose) | `MinioObjectStore` + `PostgresKnowledgeStore` (pgvector 1536, schema applied on connect) when `KB_DATA_PLANE=compose`; required |
+| OpenSearch | `OpenSearchChunkIndex` (`SearchIndexPort`) for BM25 when compose; **optional** — unreachable/unset just skips BM25 indexing |
 
 ---
 
@@ -164,7 +164,7 @@ chunks(chunk_id PK, accession_no FK, section, text, token_count, chunk_index)
 embeddings(chunk_id PK FK, embedding /* JSON array locally; vector(N) on Postgres */, metadata)
 ```
 
-`financial_facts` / OpenSearch documents: out of MVP scope (ports may no-op).
+`financial_facts` table exists (compose) but stays empty — XBRL loading into it is out of MVP scope.
 
 ---
 

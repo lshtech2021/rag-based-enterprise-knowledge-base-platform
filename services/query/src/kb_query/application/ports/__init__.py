@@ -53,6 +53,8 @@ class LLMPort(Protocol):
 
 @runtime_checkable
 class QueryLogPort(Protocol):
+    """`query_logs` (architecture §7) writer, injected only where persisted."""
+
     async def save(
         self,
         *,
@@ -60,4 +62,6 @@ class QueryLogPort(Protocol):
         answer: str,
         citations: list[Citation],
         retrieved_chunk_ids: list[str],
+        user_id: str | None = None,
+        latency_ms: float | None = None,
     ) -> None: ...

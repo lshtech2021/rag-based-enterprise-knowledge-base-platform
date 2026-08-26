@@ -25,7 +25,7 @@ Generate multi-section, **citation-backed** reports from templates by running gr
 | RAG | `SectionAnswerPort` wrapping `AnswerQuery` (no duplicate RAG stack) |
 | Orchestration | LangGraph graph entrypoint (plan → fill sections → assemble) |
 | Output | Markdown only (PDF/DOCX/Pandoc deferred) |
-| Persist | In-memory repository for MVP; SQL schema artifact for later |
+| Persist | `local`: in-memory repository. `compose`: `PostgresReportRepository` (Postgres `reports`/`report_citations` + Markdown artifact in MinIO) |
 
 ---
 
@@ -48,6 +48,7 @@ services/report/
     application/ports.py
     application/use_cases/generate_report.py
     infrastructure/in_memory_report_store.py
+    infrastructure/postgres_report_store.py
     infrastructure/answer_query_adapter.py
     presentation/graph.py
   tests/
@@ -87,4 +88,5 @@ apps/bff/report_router.py
 
 ## Open Questions
 
-None blocking. S3 versioning deferred with Compose adapters.
+None blocking. S3 versioning of report artifacts (beyond the single MinIO
+upload per save) remains deferred.

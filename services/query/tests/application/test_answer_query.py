@@ -1,5 +1,5 @@
 import pytest
-from kb_domain import AccessionNumber, Chunk
+from kb_domain import AccessionNumber, Chunk, Citation
 from kb_query.application.use_cases.answer_query import AnswerQuery, AnswerQueryCommand
 from kb_query.domain.citation_validator import CitationValidator, UngroundedAnswerError
 from kb_query.infrastructure.embeddings.hash_query_embedder import HashQueryEmbedder
@@ -9,7 +9,36 @@ from kb_query.infrastructure.retrieval.in_memory_hybrid import InMemoryHybridRet
 from kb_query.presentation.graph import build_answer_graph, build_staged_graph
 
 
-async def _seeded_use_case(llm: FakeLLM | UngroundedFakeLLM | None = None) -> AnswerQuery:
+class _RecordingQueryLog:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def save(
+        self,
+        *,
+        question: str,
+        answer: str,
+        citations: list[Citation],
+        retrieved_chunk_ids: list[str],
+        user_id: str | None = None,
+        latency_ms: float | None = None,
+    ) -> None:
+        self.calls.append(
+            {
+                "question": question,
+                "answer": answer,
+                "citations": citations,
+                "retrieved_chunk_ids": retrieved_chunk_ids,
+                "user_id": user_id,
+                "latency_ms": latency_ms,
+            }
+        )
+
+
+async def _seeded_use_case(
+    llm: FakeLLM | UngroundedFakeLLM | None = None,
+    logs: _RecordingQueryLog | None = None,
+) -> AnswerQuery:
     embedder = HashQueryEmbedder(dimensions=32)
     chunk = Chunk(
         chunk_id="risk-1",
@@ -28,6 +57,7 @@ async def _seeded_use_case(llm: FakeLLM | UngroundedFakeLLM | None = None) -> An
         reranker=NoOpReranker(),
         llm=llm or FakeLLM(),
         validator=CitationValidator(),
+        logs=logs,
     )
 
 
@@ -45,6 +75,34 @@ async def test_answer_query_rejects_ungrounded_llm() -> None:
     uc = await _seeded_use_case(llm=UngroundedFakeLLM())
     with pytest.raises(UngroundedAnswerError):
         await uc.execute(AnswerQueryCommand(question="Anything"))
+
+
+@pytest.mark.asyncio
+async def test_answer_query_logs_when_logs_port_configured() -> None:
+    logs = _RecordingQueryLog()
+    uc = await _seeded_use_case(logs=logs)
+    result = await uc.execute(
+        AnswerQueryCommand(question="What competition risks are disclosed?", user_id="dev-user")
+    )
+    assert len(logs.calls) == 1
+    call = logs.calls[0]
+    assert call["user_id"] == "dev-user"
+    assert call["question"] == "What competition risks are disclosed?"
+    assert call["answer"] == result.answer
+    assert call["retrieved_chunk_ids"] == ["risk-1"]
+    assert isinstance(call["latency_ms"], float)
+    assert call["latency_ms"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_answer_query_survives_logging_failure() -> None:
+    class _BoomLog:
+        async def save(self, **_kwargs: object) -> None:
+            raise RuntimeError("db unreachable")
+
+    uc = await _seeded_use_case(logs=_BoomLog())
+    result = await uc.execute(AnswerQueryCommand(question="What competition risks are disclosed?"))
+    assert result.citations
 
 
 @pytest.mark.asyncio

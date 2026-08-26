@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from kb_identity import Authenticate, build_authenticator
 from kb_ingestion.infrastructure.object_store.local_fs import LocalFilesystemObjectStore
+from kb_ingestion.infrastructure.object_store.minio_store import MinioObjectStore
 from kb_ingestion.infrastructure.persistence.sqlite_store import SqliteKnowledgeStore
 from kb_ingestion.infrastructure.wiring import build_compose_ingest, build_local_ingest
 from kb_observability import InMemoryLlmObserver, setup_inmemory_tracer
@@ -18,6 +19,7 @@ from kb_query.infrastructure.wiring import (
 from kb_report.application.use_cases.generate_report import GenerateReport
 from kb_report.infrastructure.answer_query_adapter import AnswerQuerySectionAdapter
 from kb_report.infrastructure.in_memory_report_store import InMemoryReportRepository
+from kb_report.infrastructure.postgres_report_store import PostgresReportRepository
 
 from kb_bff.identity_router import router as identity_router
 from kb_bff.ingest_router import router as ingest_router
@@ -34,6 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     data_dir.mkdir(parents=True, exist_ok=True)
     ingest_runtime = None
     query_runtime = None
+    report_store: PostgresReportRepository | None = None
     plane = (settings.kb_data_plane or "local").strip().lower()
     app.state.data_plane = plane
 
@@ -101,7 +104,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         and getattr(app.state, "answer_query", None) is not None
     ):
         if getattr(app.state, "report_repository", None) is None:
-            app.state.report_repository = InMemoryReportRepository()
+            if plane == "compose":
+                report_object_store = MinioObjectStore(
+                    endpoint=settings.minio_endpoint,
+                    access_key=settings.minio_access_key,
+                    secret_key=settings.minio_secret_key,
+                    bucket=settings.minio_bucket,
+                )
+                report_store = await PostgresReportRepository.connect(
+                    settings.database_url,
+                    object_store=report_object_store,
+                )
+                app.state.report_repository = report_store
+            else:
+                app.state.report_repository = InMemoryReportRepository()
         app.state.generate_report = GenerateReport(
             answers=AnswerQuerySectionAdapter(app.state.answer_query),
             reports=app.state.report_repository,
@@ -132,6 +148,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await query_runtime.llm.aclose()
             if query_runtime.postgres_store is not None:
                 await query_runtime.postgres_store.aclose()
+        if report_store is not None:
+            await report_store.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -162,19 +180,50 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest_router)
 
     @app.get("/healthz")
-    def healthz() -> dict[str, object]:
-        return {
+    async def healthz() -> dict[str, object]:
+        plane = getattr(app.state, "data_plane", cfg.kb_data_plane)
+        body: dict[str, object] = {
             "status": "ok",
             "auth_mode": cfg.auth_mode,
             "tracing": "otel-inmemory",
-            "data_plane": getattr(app.state, "data_plane", cfg.kb_data_plane),
+            "data_plane": plane,
             "ingest_configured": getattr(app.state, "ingest_filing", None) is not None,
             "query_configured": getattr(app.state, "answer_query", None) is not None,
             "report_configured": getattr(app.state, "generate_report", None) is not None,
             "corpus_chunks": int(getattr(app.state, "corpus_chunks", 0) or 0),
         }
+        if plane == "compose":
+            body.update(await _compose_readiness(app))
+        return body
 
     return app
+
+
+async def _compose_readiness(app: FastAPI) -> dict[str, object]:
+    """Best-effort Postgres/MinIO/OpenSearch pings for the compose data plane."""
+    query_runtime = getattr(app.state, "query_runtime", None)
+    ingest_runtime = getattr(app.state, "ingest_runtime", None)
+
+    postgres_store = None
+    if query_runtime is not None:
+        postgres_store = query_runtime.postgres_store
+    if postgres_store is None and ingest_runtime is not None:
+        postgres_store = ingest_runtime.postgres_store
+    postgres_ok = await postgres_store.ping() if postgres_store is not None else False
+
+    object_store = getattr(app.state, "object_store", None)
+    minio_ping = getattr(object_store, "ping", None)
+    minio_ok = await minio_ping() if callable(minio_ping) else False
+
+    search_index = ingest_runtime.search_index if ingest_runtime is not None else None
+    opensearch_ping = getattr(search_index, "ping", None)
+    opensearch_ok = await opensearch_ping() if callable(opensearch_ping) else False
+
+    return {
+        "postgres_ok": postgres_ok,
+        "minio_ok": minio_ok,
+        "opensearch_ok": opensearch_ok,
+    }
 
 
 app = create_app()

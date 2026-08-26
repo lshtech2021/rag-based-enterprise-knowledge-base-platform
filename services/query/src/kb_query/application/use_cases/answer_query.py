@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from kb_domain import Citation
@@ -20,6 +21,7 @@ from kb_query.domain.citation_validator import CitationValidator, ValidatedAnswe
 class AnswerQueryCommand:
     question: str
     top_k: int = 5
+    user_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +50,7 @@ class AnswerQuery:
         self._logs = logs
 
     async def execute(self, command: AnswerQueryCommand) -> AnswerQueryResult:
+        started = time.perf_counter()
         rewritten = await self._llm.rewrite(command.question)
         vector = await self._embedder.embed_query(rewritten)
         hits = await self._retriever.search(rewritten, vector, top_k=command.top_k)
@@ -55,12 +58,18 @@ class AnswerQuery:
         draft = await self._llm.generate(command.question, hits)
         validated: ValidatedAnswer = self._validator.validate(draft, hits)
         if self._logs is not None:
-            await self._logs.save(
-                question=command.question,
-                answer=validated.text,
-                citations=list(validated.citations),
-                retrieved_chunk_ids=[h.chunk.chunk_id for h in hits],
-            )
+            latency_ms = (time.perf_counter() - started) * 1000
+            try:
+                await self._logs.save(
+                    question=command.question,
+                    answer=validated.text,
+                    citations=list(validated.citations),
+                    retrieved_chunk_ids=[h.chunk.chunk_id for h in hits],
+                    user_id=command.user_id,
+                    latency_ms=latency_ms,
+                )
+            except Exception:  # noqa: BLE001 - logging must never break answers
+                pass
         return AnswerQueryResult(
             rewritten_question=rewritten,
             answer=validated.text,

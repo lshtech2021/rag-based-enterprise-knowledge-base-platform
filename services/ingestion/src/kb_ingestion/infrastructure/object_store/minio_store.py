@@ -72,3 +72,9 @@ class MinioObjectStore:
                 response.release_conn()
         except S3Error as exc:
             raise KeyError(key) from exc
+
+    async def ping(self) -> bool:
+        try:
+            return await asyncio.to_thread(self._client.bucket_exists, self._bucket)
+        except Exception:  # noqa: BLE001
+            return False

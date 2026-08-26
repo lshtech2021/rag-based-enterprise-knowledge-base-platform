@@ -23,7 +23,8 @@ Answer analyst questions with **grounded, cited** responses over ingested chunks
 |---|---|
 | Package | `kb-query` under `services/query` |
 | Orchestration | LangGraph `StateGraph` (rewrite → retrieve → generate → validate) |
-| Hybrid retrieval | Local: in-memory dense+keyword RRF over SQLite corpus. Compose: **pgvector dense + OpenSearch BM25 → RRF** (`ComposeHybridRetriever`) |
+| Hybrid retrieval | Local: in-memory dense+keyword RRF over SQLite corpus. Compose: **pgvector dense + OpenSearch BM25 → RRF** (`ComposeHybridRetriever`); falls back to `DenseOnlyRetriever` (pgvector only) if OpenSearch is unset/unreachable |
+| Query audit | Compose: `query_logs` row per answer via `QueryLogPort` (`AnswerQuery(logs=...)`); local: no-op (`logs=None`) |
 | Rerank | Identity/pass-through port (cross-encoder later) |
 | LLM | `LLMPort` + `FakeLLM` for tests; **`OpenAIChatLLM`** for live BFF |
 | Embed query | `EmbedderPort` + **`OpenAIQueryEmbedder`** (`text-embedding-3-small`) for live; **`HashQueryEmbedder`** for tests (must match ingest dimensions) |
@@ -107,4 +108,4 @@ apps/bff/ ... query_router.py
 
 ## Open Questions
 
-None blocking. Postgres/OpenSearch hybrid remains a later slice.
+None blocking. Cross-encoder reranking remains a later slice.

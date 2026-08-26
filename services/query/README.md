@@ -20,7 +20,10 @@ uv run uvicorn kb_bff.main:app --reload --port 8000
 # GET  /healthz   → query_configured, corpus_chunks
 ```
 
-Wiring: `build_local_answer_query` (SQLite) or `build_compose_answer_query` (pgvector + OpenSearch) depending on `KB_DATA_PLANE`.
+Wiring: `build_local_answer_query` (SQLite) or `build_compose_answer_query`
+(pgvector dense + OpenSearch BM25, or pgvector dense-only if OpenSearch is
+unset/unreachable) depending on `KB_DATA_PLANE`. Compose also writes a
+`query_logs` row per answer via `QueryLogPort`.
 
 ## Tests
 

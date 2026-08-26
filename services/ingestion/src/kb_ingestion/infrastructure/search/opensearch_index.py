@@ -114,3 +114,9 @@ class OpenSearchChunkIndex:
             )
             hits.append((chunk, float(hit.get("_score") or 0.0), str(src.get("source_url") or "")))
         return hits
+
+    async def ping(self) -> bool:
+        try:
+            return bool(await asyncio.to_thread(self._client.ping))
+        except Exception:  # noqa: BLE001
+            return False

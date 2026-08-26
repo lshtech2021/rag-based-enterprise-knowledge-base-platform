@@ -5,12 +5,105 @@ from __future__ import annotations
 import json
 from datetime import date
 from typing import Any, cast
+from uuid import uuid4
 
-from kb_domain import CIK, AccessionNumber, Chunk, Filing
+from kb_domain import CIK, AccessionNumber, Chunk, Citation, Filing
 from pgvector.psycopg import register_vector_async
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
+
+# Architecture §7 tables owned by the ingestion service. Applied on every
+# `connect()` (idempotent) so any Postgres — not only a fresh Compose volume
+# seeded by infra/initdb/ — ends up with the full schema.
+_SCHEMA_STATEMENTS: tuple[str, ...] = (
+    "CREATE EXTENSION IF NOT EXISTS vector",
+    """
+    CREATE TABLE IF NOT EXISTS companies (
+        cik VARCHAR(10) PRIMARY KEY,
+        name TEXT NOT NULL,
+        ticker TEXT,
+        sic TEXT,
+        last_ingested_accession VARCHAR(20)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS filings (
+        accession_no VARCHAR(20) PRIMARY KEY,
+        cik VARCHAR(10) NOT NULL REFERENCES companies (cik),
+        form_type TEXT NOT NULL,
+        filed_date DATE NOT NULL,
+        period TEXT,
+        s3_raw_path TEXT NOT NULL,
+        source_url TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chunks (
+        chunk_id TEXT PRIMARY KEY,
+        accession_no VARCHAR(20) NOT NULL REFERENCES filings (accession_no),
+        section TEXT NOT NULL,
+        text TEXT NOT NULL,
+        token_count INTEGER NOT NULL,
+        chunk_index INTEGER NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS embeddings (
+        chunk_id TEXT PRIMARY KEY REFERENCES chunks (chunk_id) ON DELETE CASCADE,
+        embedding vector(1536) NOT NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+    )
+    """,
+    # XBRL companyfacts land here once a loader exists (SPEC-ingestion); the
+    # table is created up-front so query-side tooling can rely on it existing.
+    """
+    CREATE TABLE IF NOT EXISTS financial_facts (
+        cik VARCHAR(10) NOT NULL REFERENCES companies (cik),
+        concept TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        value NUMERIC NOT NULL,
+        fiscal_period TEXT NOT NULL,
+        accession_no VARCHAR(20) NOT NULL REFERENCES filings (accession_no),
+        PRIMARY KEY (cik, concept, unit, fiscal_period, accession_no)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS query_logs (
+        query_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        question TEXT NOT NULL,
+        retrieved_chunks JSONB NOT NULL DEFAULT '[]'::jsonb,
+        answer TEXT NOT NULL,
+        latency_ms DOUBLE PRECISION NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS filings_cik_idx ON filings (cik)",
+    "CREATE INDEX IF NOT EXISTS chunks_accession_idx ON chunks (accession_no)",
+    (
+        "CREATE INDEX IF NOT EXISTS embeddings_hnsw_idx "
+        "ON embeddings USING hnsw (embedding vector_cosine_ops)"
+    ),
+    "CREATE INDEX IF NOT EXISTS financial_facts_cik_idx ON financial_facts (cik)",
+    "CREATE INDEX IF NOT EXISTS query_logs_user_idx ON query_logs (user_id)",
+)
+
+
+async def _ensure_schema(database_url: str) -> None:
+    """Apply the ingestion schema against any reachable Postgres, idempotently.
+
+    Runs outside the pooled connection (and before pgvector's async adapter is
+    registered) because `CREATE EXTENSION vector` must exist before the
+    ``pgvector`` type OID can be resolved.
+    """
+    conn = await AsyncConnection.connect(database_url)
+    try:
+        for statement in _SCHEMA_STATEMENTS:
+            await conn.execute(statement)
+        await conn.commit()
+    finally:
+        await conn.close()
 
 
 async def _configure(conn: AsyncConnection[Any]) -> None:
@@ -25,8 +118,15 @@ class PostgresKnowledgeStore:
 
     @classmethod
     async def connect(
-        cls, database_url: str, *, min_size: int = 1, max_size: int = 4
+        cls,
+        database_url: str,
+        *,
+        min_size: int = 1,
+        max_size: int = 4,
+        ensure_schema: bool = True,
     ) -> PostgresKnowledgeStore:
+        if ensure_schema:
+            await _ensure_schema(database_url)
         pool: AsyncConnectionPool[Any] = AsyncConnectionPool(
             conninfo=database_url,
             min_size=min_size,
@@ -306,3 +406,97 @@ class PostgresKnowledgeStore:
             return True
         except Exception:  # noqa: BLE001
             return False
+
+    async def save(
+        self,
+        *,
+        question: str,
+        answer: str,
+        citations: list[Citation],
+        retrieved_chunk_ids: list[str],
+        user_id: str | None = None,
+        latency_ms: float | None = None,
+    ) -> None:
+        """Implements `QueryLogPort` — persists `query_logs` (architecture §7)."""
+        retrieved_chunks = {
+            "retrieved_chunk_ids": retrieved_chunk_ids,
+            "citations": [
+                {
+                    "chunk_id": cite.chunk_id,
+                    "accession_no": str(cite.accession_no),
+                    "section": cite.section,
+                    "source_url": cite.source_url,
+                }
+                for cite in citations
+            ],
+        }
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO query_logs (
+                    query_id, user_id, question, retrieved_chunks, answer, latency_ms
+                ) VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+                """,
+                (
+                    str(uuid4()),
+                    user_id or "unknown",
+                    question,
+                    json.dumps(retrieved_chunks),
+                    answer,
+                    float(latency_ms or 0.0),
+                ),
+            )
+            await conn.commit()
+
+
+class PostgresFilingRepository:
+    """Companies/filings/cursor view over `PostgresKnowledgeStore`.
+
+    Matches the architecture §2 adapter name (`PostgresFilingRepository`)
+    without duplicating the pooled connection; wraps the same store so
+    ingestion keeps a single pool while callers that want the
+    architecture-named type can depend on this narrower surface.
+    """
+
+    def __init__(self, store: PostgresKnowledgeStore) -> None:
+        self._store = store
+
+    async def upsert_company(self, cik: CIK, name: str, ticker: str | None = None) -> None:
+        await self._store.upsert_company(cik, name, ticker)
+
+    async def save_filing(self, filing: Filing, source_url: str) -> None:
+        await self._store.save_filing(filing, source_url)
+
+    async def get_filing(self, accession_no: AccessionNumber) -> Filing | None:
+        return await self._store.get_filing(accession_no)
+
+    async def get_last_ingested(self, cik: CIK) -> AccessionNumber | None:
+        return await self._store.get_last_ingested(cik)
+
+    async def set_last_ingested(self, cik: CIK, accession_no: AccessionNumber) -> None:
+        await self._store.set_last_ingested(cik, accession_no)
+
+
+class PgVectorStore:
+    """pgvector embeddings view over `PostgresKnowledgeStore`.
+
+    Matches the architecture §2 adapter name (`PgVectorStore`); see
+    `PostgresFilingRepository` for why this wraps rather than replaces the
+    combined store.
+    """
+
+    def __init__(self, store: PostgresKnowledgeStore) -> None:
+        self._store = store
+
+    async def upsert_embeddings(
+        self, items: list[tuple[Chunk, list[float], dict[str, object]]]
+    ) -> None:
+        await self._store.upsert_embeddings(items)
+
+    async def get_embedding(self, chunk_id: str) -> list[float] | None:
+        return await self._store.get_embedding(chunk_id)
+
+    async def search_dense(
+        self, query_vector: list[float], *, top_k: int = 5
+    ) -> list[tuple[Chunk, float, str]]:
+        return await self._store.search_dense(query_vector, top_k=top_k)

@@ -29,7 +29,11 @@ from kb_ingestion.infrastructure.persistence.in_memory import (
     InMemoryObjectStore,
     InMemoryVectorStore,
 )
-from kb_ingestion.infrastructure.persistence.postgres_store import PostgresKnowledgeStore
+from kb_ingestion.infrastructure.persistence.postgres_store import (
+    PgVectorStore,
+    PostgresFilingRepository,
+    PostgresKnowledgeStore,
+)
 from kb_ingestion.infrastructure.persistence.sqlite_store import SqliteKnowledgeStore
 from kb_ingestion.infrastructure.search.opensearch_index import OpenSearchChunkIndex
 
@@ -46,6 +50,10 @@ class IngestRuntime:
     postgres_store: PostgresKnowledgeStore | None = None
     search_index: SearchIndexPort | None = None
     embedder_label: str = "hash"
+    # Architecture §2 named views over `postgres_store` (compose only); thin
+    # wrappers, not a second connection pool.
+    filing_repository: PostgresFilingRepository | None = None
+    vector_store: PgVectorStore | None = None
 
 
 def build_openai_embedder(
@@ -180,7 +188,14 @@ async def build_compose_ingest(
         bucket=bucket,
     )
     db = await PostgresKnowledgeStore.connect(db_url)
-    search = OpenSearchChunkIndex(url=os_url)
+    # OpenSearch is an optional add-on: compose only *requires* Postgres +
+    # MinIO. Unset/unreachable OpenSearch skips BM25 indexing rather than
+    # failing wiring (query then falls back to dense-only retrieval).
+    search: OpenSearchChunkIndex | None
+    try:
+        search = OpenSearchChunkIndex(url=os_url)
+    except Exception:  # noqa: BLE001
+        search = None
     edgar = HttpEdgarClient(user_agent)
     resolved = _resolve_embedder(
         embedder,
@@ -209,6 +224,8 @@ async def build_compose_ingest(
         postgres_store=db,
         search_index=search,
         embedder_label=resolved.label,
+        filing_repository=PostgresFilingRepository(db),
+        vector_store=PgVectorStore(db),
     )
 
 

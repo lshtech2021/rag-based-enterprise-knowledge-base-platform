@@ -45,7 +45,7 @@ async def query_sse(
     request: Request,
     use_case: Annotated[AnswerQuery, Depends(get_answer_query)],
     observer: Annotated[LlmObserverPort, Depends(get_llm_observer)],
-    _principal: Annotated[Principal, Depends(require_roles_dep(Role.ANALYST))],
+    principal: Annotated[Principal, Depends(require_roles_dep(Role.ANALYST))],
 ) -> StreamingResponse:
     tracer = getattr(request.app.state, "tracer", None)
 
@@ -57,8 +57,14 @@ async def query_sse(
             else nullcontext()
         )
         with span_cm:
+            # `user_id` flows into AnswerQuery so its optional `logs` port
+            # (query_logs, compose only) can persist who asked.
             result = await use_case.execute(
-                AnswerQueryCommand(question=body.question, top_k=body.top_k)
+                AnswerQueryCommand(
+                    question=body.question,
+                    top_k=body.top_k,
+                    user_id=principal.user_id,
+                )
             )
             latency_ms = (time.perf_counter() - started) * 1000
             try:

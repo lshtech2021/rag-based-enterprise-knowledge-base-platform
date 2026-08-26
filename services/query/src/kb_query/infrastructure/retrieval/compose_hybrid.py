@@ -56,3 +56,26 @@ class ComposeHybridRetriever:
 
 def as_retriever(retriever: ComposeHybridRetriever) -> HybridRetrieverPort:
     return retriever
+
+
+class DenseOnlyRetriever:
+    """pgvector-only fallback when OpenSearch is unset/unreachable.
+
+    Compose only *requires* Postgres/pgvector + MinIO; OpenSearch is an
+    optional add-on for the BM25 half of hybrid retrieval (SPEC-query).
+    """
+
+    def __init__(self, dense: DenseSearcher) -> None:
+        self._dense = dense
+
+    async def search(
+        self,
+        query: str,
+        query_vector: list[float],
+        *,
+        top_k: int = 5,
+    ) -> list[RetrievalHit]:
+        hits = await self._dense.search_dense(query_vector, top_k=top_k)
+        return [
+            RetrievalHit(chunk=chunk, score=score, source_url=url) for chunk, score, url in hits
+        ]

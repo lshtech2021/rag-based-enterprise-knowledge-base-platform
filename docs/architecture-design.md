@@ -107,17 +107,28 @@ Without Compose, the live demo loop is:
 
 ### Compose path (`KB_DATA_PLANE=compose`)
 
-With `docker compose -f infra/docker-compose.yml --profile opensearch up -d`:
+With `docker compose -f infra/docker-compose.yml up -d` (Postgres/pgvector + MinIO;
+add `--profile opensearch` for BM25):
 
 | Concern | Implementation |
 |---|---|
 | Raw filings | MinIO bucket `kb-filings` (`s3://…` URIs) |
-| Metadata / chunks / vectors | Postgres 16 + pgvector (`vector(1536)` + HNSW) |
-| BM25 | OpenSearch index `kb_chunks` |
-| Query | `ComposeHybridRetriever` (pgvector dense + OpenSearch BM25 → RRF) |
-| Switch | `KB_DATA_PLANE=compose` on BFF/CLI (`--backend compose`) |
+| Metadata / chunks / vectors | Postgres 16 + pgvector (`vector(1536)` + HNSW), via `PostgresFilingRepository` + `PgVectorStore` (thin views over the pooled `PostgresKnowledgeStore`) |
+| Reports | Postgres `reports` + `report_citations` (`PostgresReportRepository`) + Markdown artifact uploaded to MinIO (`s3_output_path`) |
+| Query audit | `query_logs` row per answered question (`QueryLogPort`, wired to the same Postgres pool) |
+| BM25 (optional) | OpenSearch index `kb_chunks`, if `OPENSEARCH_URL` is reachable |
+| Query | `ComposeHybridRetriever` (pgvector dense + OpenSearch BM25 → RRF) when OpenSearch is up; `DenseOnlyRetriever` (pgvector only) otherwise |
+| Schema | Applied on every connect (idempotent `CREATE TABLE/EXTENSION IF NOT EXISTS`), not only via `infra/initdb/` on a fresh volume — any reachable Postgres 16+pgvector works |
+| Switch | `KB_DATA_PLANE=compose` on BFF/CLI (`--backend compose`); `local` stays SQLite+FS+in-memory reports |
+| Readiness | `GET /healthz` adds `postgres_ok` / `minio_ok` / `opensearch_ok` when `data_plane=compose` |
 
-**Still deferred:** Docling/XBRL, real OIDC JWKS, true LLM token SSE, Dagster-driven live ETL, Kafka/Redis cache, K8s.
+Postgres + MinIO are required for `compose`; OpenSearch is optional (dense-only
+retrieval and no BM25 indexing if it's unset or unreachable).
+
+**Still deferred:** Docling/XBRL parsing into `financial_facts` (table exists,
+stays empty), real OIDC JWKS, true LLM token SSE, Dagster-driven live ETL,
+Kafka/Redis Streams messaging, Anthropic/vLLM adapters, cross-encoder rerank,
+K8s/Helm.
 
 Operator specs: [SPEC-ingestion.md](../SPEC-ingestion.md), [SPEC-query.md](../SPEC-query.md), [infra/README.md](../infra/README.md).
 
