@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -30,7 +30,7 @@ from kb_bff.tracing import TracingMiddleware
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings: Settings = app.state.settings
     data_dir = Path(settings.ingest_data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
