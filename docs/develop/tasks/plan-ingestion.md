@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, httpx, Dagster, pytest, existing uv workspace.
 
-**Spec:** [SPEC-ingestion.md](../SPEC-ingestion.md)
+**Spec:** [SPEC-ingestion.md](../specs/SPEC-ingestion.md)
 
 ## Global Constraints
 

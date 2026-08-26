@@ -8,6 +8,6 @@
 
 **Tech Stack:** Python 3.12, LangGraph, FastAPI SSE, pytest, existing `kb_domain`.
 
-**Spec:** [SPEC-query.md](../SPEC-query.md)
+**Spec:** [SPEC-query.md](../specs/SPEC-query.md)
 
 See [todo-query.md](todo-query.md).

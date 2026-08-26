@@ -2,7 +2,7 @@
 
 EDGAR ETL: fetch → store → parse → chunk → embed.
 
-Spec: [`SPEC-ingestion.md`](../../SPEC-ingestion.md)  
+Spec: [`SPEC-ingestion.md`](../../docs/develop/specs/SPEC-ingestion.md)  
 Download guide: [`docs/edgar-download-guide.md`](../../docs/edgar-download-guide.md)
 
 ## Ingest a filing (local)

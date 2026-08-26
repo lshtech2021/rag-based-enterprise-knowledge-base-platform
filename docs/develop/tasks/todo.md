@@ -1,6 +1,6 @@
 # Tasks: platform-foundation
 
-Spec: [SPEC-platform-foundation.md](../SPEC-platform-foundation.md) · Plan: [plan.md](plan.md)
+Spec: [SPEC-platform-foundation.md](../specs/SPEC-platform-foundation.md) · Plan: [plan.md](plan.md)
 
 **Status:** Complete (2026-08-25). Compose files present; runtime Compose check skipped (no Docker in build host).
 

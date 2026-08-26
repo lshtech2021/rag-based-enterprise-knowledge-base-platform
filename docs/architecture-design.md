@@ -130,7 +130,7 @@ stays empty), real OIDC JWKS, true LLM token SSE, Dagster-driven live ETL,
 Kafka/Redis Streams messaging, Anthropic/vLLM adapters, cross-encoder rerank,
 K8s/Helm.
 
-Operator specs: [SPEC-ingestion.md](../SPEC-ingestion.md), [SPEC-query.md](../SPEC-query.md), [infra/README.md](../infra/README.md).
+Operator specs: [SPEC-ingestion.md](develop/specs/SPEC-ingestion.md), [SPEC-query.md](develop/specs/SPEC-query.md), [infra/README.md](../infra/README.md).
 
 ---
 

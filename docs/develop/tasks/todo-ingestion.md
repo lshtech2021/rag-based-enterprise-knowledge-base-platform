@@ -1,6 +1,6 @@
 # Tasks: ingestion
 
-Spec: [SPEC-ingestion.md](../SPEC-ingestion.md) · Plan: [plan-ingestion.md](plan-ingestion.md)
+Spec: [SPEC-ingestion.md](../specs/SPEC-ingestion.md) · Plan: [plan-ingestion.md](plan-ingestion.md)
 
 **Status:** Complete (2026-08-25) — local FS+SQLite + OpenAI embeddings + CLI/BFF/UI; Postgres/MinIO/Docling deferred.
 

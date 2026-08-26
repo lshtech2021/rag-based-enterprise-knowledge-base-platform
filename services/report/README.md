@@ -2,7 +2,7 @@
 
 Template-driven multi-section reports over grounded RAG.
 
-Spec: [`SPEC-report.md`](../../SPEC-report.md)
+Spec: [`SPEC-report.md`](../../docs/develop/specs/SPEC-report.md)
 
 ## Persistence
 

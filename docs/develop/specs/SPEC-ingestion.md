@@ -3,8 +3,8 @@
 Module id: `ingestion`  
 Depends on: `platform-foundation`  
 Umbrella: [SPEC-develop.md](SPEC-develop.md) · Map: [CAPABILITY-MAP.md](CAPABILITY-MAP.md)  
-Architecture: [docs/architecture-design.md](docs/architecture-design.md) §4  
-Operator guide: [docs/edgar-download-guide.md](docs/edgar-download-guide.md) · Service README: [services/ingestion/README.md](services/ingestion/README.md)
+Architecture: [docs/architecture-design.md](../../architecture-design.md) §4  
+Operator guide: [docs/edgar-download-guide.md](../../edgar-download-guide.md) · Service README: [services/ingestion/README.md](../../../services/ingestion/README.md)
 
 ---
 

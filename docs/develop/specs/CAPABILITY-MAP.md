@@ -1,6 +1,6 @@
 # Capability Map: RAG Enterprise Knowledge Base Platform
 
-Source: [docs/architecture-design.md](docs/architecture-design.md)
+Source: [docs/architecture-design.md](../../architecture-design.md)
 
 | Module id | Responsibility | Depends on |
 |---|---|---|

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12+, uv, FastAPI, Pydantic v2, Ruff, mypy, pytest, Docker Compose, GitHub Actions.
 
-**Spec:** [SPEC-platform-foundation.md](../SPEC-platform-foundation.md) · Umbrella: [SPEC-develop.md](../SPEC-develop.md)
+**Spec:** [SPEC-platform-foundation.md](../specs/SPEC-platform-foundation.md) · Umbrella: [SPEC-develop.md](../specs/SPEC-develop.md)
 
 ## Global Constraints
 
@@ -64,7 +64,7 @@ service skeletons + Makefile + CI
 
 ## Task List Index
 
-See [tasks/todo.md](todo.md) for acceptance criteria and file lists.
+See [todo.md](todo.md) for acceptance criteria and file lists.
 
 ## Open Questions
 

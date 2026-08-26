@@ -192,7 +192,7 @@ Always keep **accession number**, **section**, and **source URL** with each chun
 
 | Concern | Location |
 |---|---|
-| Spec | [SPEC-ingestion.md](../SPEC-ingestion.md) |
+| Spec | [SPEC-ingestion.md](develop/specs/SPEC-ingestion.md) |
 | HTTP client | `services/ingestion/.../edgar/http_client.py` |
 | CLI | `uv run kb-ingest --cik … --forms …` (needs `SEC_USER_AGENT` + `OPENAI_API_KEY`) |
 | Local store | `data/ingestion/raw` + `ingestion.sqlite3` (`INGEST_DATA_DIR`) |

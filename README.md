@@ -1,6 +1,6 @@
 # RAG Enterprise Knowledge Base Platform
 
-See [SPEC-develop.md](SPEC-develop.md) and [CAPABILITY-MAP.md](CAPABILITY-MAP.md).
+See [SPEC-develop.md](docs/develop/specs/SPEC-develop.md) and [CAPABILITY-MAP.md](docs/develop/specs/CAPABILITY-MAP.md).
 
 EDGAR download how-to: [docs/edgar-download-guide.md](docs/edgar-download-guide.md).  
 Ingestion service: [services/ingestion/README.md](services/ingestion/README.md).

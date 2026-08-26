@@ -3,7 +3,7 @@
 Module id: `report`  
 Depends on: `platform-foundation`, `query`  
 Umbrella: [SPEC-develop.md](SPEC-develop.md) · Map: [CAPABILITY-MAP.md](CAPABILITY-MAP.md)  
-Architecture: [docs/architecture-design.md](docs/architecture-design.md) §6
+Architecture: [docs/architecture-design.md](../../architecture-design.md) §6
 
 ---
 

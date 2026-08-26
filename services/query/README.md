@@ -1,6 +1,6 @@
 # Query service
 
-Hybrid RAG Q&A with citations. Spec: [`SPEC-query.md`](../../SPEC-query.md)
+Hybrid RAG Q&A with citations. Spec: [`SPEC-query.md`](../../docs/develop/specs/SPEC-query.md)
 
 ## Local demo (shared with ingest)
 

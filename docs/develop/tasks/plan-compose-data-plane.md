@@ -1,7 +1,7 @@
 # Plan: Compose data plane + config selection
 
 **Status:** Proposed (not started)  
-**Related:** [docs/architecture-design.md](../docs/architecture-design.md) §2–§7, [SPEC-ingestion.md](../SPEC-ingestion.md), [SPEC-query.md](../SPEC-query.md), [SPEC-report.md](../SPEC-report.md), [infra/README.md](../infra/README.md)
+**Related:** [docs/architecture-design.md](../../architecture-design.md) §2–§7, [SPEC-ingestion.md](../specs/SPEC-ingestion.md), [SPEC-query.md](../specs/SPEC-query.md), [SPEC-report.md](../specs/SPEC-report.md), [infra/README.md](../../../infra/README.md)
 
 ## Intent
 

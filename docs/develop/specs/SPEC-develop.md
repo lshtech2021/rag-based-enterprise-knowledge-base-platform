@@ -1,6 +1,6 @@
 # Spec: Develop — RAG Enterprise Knowledge Base Platform
 
-Living develop spec for building the platform described in [docs/architecture-design.md](docs/architecture-design.md). Module boundaries and build order are indexed by [CAPABILITY-MAP.md](CAPABILITY-MAP.md). This document is the **umbrella** develop contract (shared stack, layout, style, tests, boundaries). Each module later gets `SPEC-<module-id>.md` after the map is approved.
+Living develop spec for building the platform described in [docs/architecture-design.md](../../architecture-design.md). Module boundaries and build order are indexed by [CAPABILITY-MAP.md](CAPABILITY-MAP.md). This document is the **umbrella** develop contract (shared stack, layout, style, tests, boundaries). Each module later gets `SPEC-<module-id>.md` after the map is approved.
 
 ---
 
@@ -103,11 +103,11 @@ make typecheck
 
 ```
 /
-├── CAPABILITY-MAP.md
-├── SPEC-develop.md              # this file (umbrella)
-├── SPEC-<module-id>.md          # per-module specs (after map approval)
 ├── docs/
-│   └── architecture-design.md
+│   ├── architecture-design.md
+│   └── develop/
+│       ├── specs/               # CAPABILITY-MAP.md, SPEC-develop.md (this file), SPEC-<module-id>.md
+│       └── tasks/                # plan-<module-id>.md, todo-<module-id>.md after Spec approval
 ├── apps/
 │   ├── bff/                     # FastAPI gateway: auth, routing, rate limits
 │   └── web/                     # Next.js UI
@@ -122,7 +122,6 @@ make typecheck
 ├── infra/
 │   ├── docker-compose.yml
 │   └── (later) terraform/, helm/
-├── tasks/                       # plan.md, todo.md after Spec approval
 └── tests/                       # cross-cutting / contract tests (optional)
 ```
 
