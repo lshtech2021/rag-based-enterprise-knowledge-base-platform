@@ -92,6 +92,35 @@ presentation/        # FastAPI routers, GraphQL resolvers, CLI, gRPC
 | IaC/Deploy | **Kubernetes (EKS/GKE)** + **Helm**, **Terraform** | Reproducible infra |
 | CI/CD | **GitHub Actions** + Argo CD (GitOps) | |
 
+### Current local path (working demo)
+
+Without Compose, the live demo loop is:
+
+| Concern | Implementation |
+|---|---|
+| Raw filings | Local filesystem under `INGEST_DATA_DIR/raw` |
+| Metadata / chunks / vectors | SQLite (`ingestion.sqlite3`); embeddings as JSON arrays |
+| Embeddings | OpenAI `text-embedding-3-small` (1536-d); `HashEmbedder` in tests |
+| Query | Load SQLite corpus → in-memory dense+keyword RRF; `OpenAIQueryEmbedder` + `OpenAIChatLLM` |
+| Surfaces | CLI `kb-ingest`, BFF ingest/query/report, Annex `/ingest` `/console` `/reports` |
+| Auth | `dev_bypass` (+ HMAC JWT stand-in labeled `oidc`) |
+
+### Compose path (`KB_DATA_PLANE=compose`)
+
+With `docker compose -f infra/docker-compose.yml --profile opensearch up -d`:
+
+| Concern | Implementation |
+|---|---|
+| Raw filings | MinIO bucket `kb-filings` (`s3://…` URIs) |
+| Metadata / chunks / vectors | Postgres 16 + pgvector (`vector(1536)` + HNSW) |
+| BM25 | OpenSearch index `kb_chunks` |
+| Query | `ComposeHybridRetriever` (pgvector dense + OpenSearch BM25 → RRF) |
+| Switch | `KB_DATA_PLANE=compose` on BFF/CLI (`--backend compose`) |
+
+**Still deferred:** Docling/XBRL, real OIDC JWKS, true LLM token SSE, Dagster-driven live ETL, Kafka/Redis cache, K8s.
+
+Operator specs: [SPEC-ingestion.md](../SPEC-ingestion.md), [SPEC-query.md](../SPEC-query.md), [infra/README.md](../infra/README.md).
+
 ---
 
 ## 4. Ingestion Pipeline (EDGAR)
@@ -104,22 +133,22 @@ presentation/        # FastAPI routers, GraphQL resolvers, CLI, gRPC
 2. **Store raw** → S3/MinIO (immutable, versioned) + metadata row in Postgres (`filings` table: cik, accession_no, form_type, filed_date, url, s3_path).
 3. **Parse** — Docling/Unstructured extracts sections (Item 1A Risk Factors, MD&A, financial tables) preserving structure; XBRL facts parsed separately into structured `financial_facts` table.
 4. **Chunk** — section-aware, paragraph-first packing (~512 target / 768 max tokens, overlap), attach metadata (company, form type, fiscal period, section, source URL) for citation.
-5. **Embed** — batch embedding via OpenAI (`text-embedding-3-small`) for live runs; store vectors + metadata (SQLite JSON locally; pgvector target); also index text in OpenSearch for hybrid BM25 (deferred).
-6. **Surfaces** — CLI `kb-ingest`, BFF `POST /v1/ingest` + raw download, Annex `/ingest` UI; Dagster asset graph remains for orchestration later.
+5. **Embed** — batch embedding via OpenAI (`text-embedding-3-small`); store in SQLite JSON (local) or pgvector (compose); index text in OpenSearch for BM25 when `KB_DATA_PLANE=compose`.
+6. **Surfaces** — CLI `kb-ingest` (`--backend local|compose`), BFF `POST /v1/ingest` + raw download, Annex `/ingest` UI; Dagster asset graph remains for orchestration later.
 7. **Dedup/Incremental** — track `last_ingested_accession` per CIK; only pull deltas via submissions API unless `force`.
 
 ---
 
 ## 5. Query (RAG) Flow
 
-1. User submits question → Query Service.
-2. **Query Understanding**: LLM rewrites/decomposes query, extracts entities (company/ticker/period) → filters.
-3. **Hybrid Retrieval**: vector similarity (pgvector) + BM25 (OpenSearch) → Reciprocal Rank Fusion.
-4. **Re-ranking**: cross-encoder (e.g., BGE-reranker) on top-K candidates.
+1. User submits question → Query Service (BFF `POST /v1/query` SSE).
+2. **Query Understanding**: LLM rewrites/decomposes query (OpenAI chat locally; FakeLLM in tests).
+3. **Hybrid Retrieval**: dense cosine + keyword RRF (local SQLite load) or **pgvector + OpenSearch BM25 → RRF** (`KB_DATA_PLANE=compose`).
+4. **Re-ranking**: pass-through `NoOpReranker` *(target: cross-encoder)*.
 5. **Context Assembly**: build prompt with citations (accession no., section, URL).
-6. **Generation**: LLM (vLLM-hosted or API) streams grounded answer with inline citations.
-7. **Guardrails**: citation-check (CitationValidator domain service) rejects ungrounded claims; Ragas-based online eval sampling.
-8. **Response** streamed via WebSocket/SSE to UI with source panel.
+6. **Generation**: OpenAI chat (local demo) streams via BFF as post-hoc token SSE *(target: true token streaming / vLLM)*.
+7. **Guardrails**: citation-check (`CitationValidator`) rejects ungrounded claims; online Ragas sampling deferred.
+8. **Response** SSE to UI with source panel.
 
 ## 6. Report Generation Flow
 

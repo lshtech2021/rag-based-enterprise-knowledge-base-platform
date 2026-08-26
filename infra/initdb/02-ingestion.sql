@@ -1,4 +1,4 @@
--- Ingestion MVP schema (Postgres 16 + pgvector)
+-- Ingestion schema (Postgres 16 + pgvector)
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS companies (

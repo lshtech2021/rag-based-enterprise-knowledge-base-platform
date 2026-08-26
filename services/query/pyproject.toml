@@ -5,6 +5,7 @@ description = "Hybrid RAG query service"
 requires-python = ">=3.12"
 dependencies = [
     "kb-domain",
+    "kb-ingestion",
     "httpx>=0.27",
     "langgraph>=0.2",
 ]
@@ -18,3 +19,4 @@ packages = ["src/kb_query"]
 
 [tool.uv.sources]
 kb-domain = { workspace = true }
+kb-ingestion = { workspace = true }

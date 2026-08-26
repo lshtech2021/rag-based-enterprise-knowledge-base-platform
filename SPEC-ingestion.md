@@ -10,7 +10,7 @@ Operator guide: [docs/edgar-download-guide.md](docs/edgar-download-guide.md) · 
 
 ## Objective
 
-Ingest SEC EDGAR filings for a chosen CIK (+ form types) into a local data plane (filesystem raw + SQLite metadata/chunks/embeddings), with section-aware chunking and OpenAI embeddings—so `query` can retrieve grounded context. Postgres/MinIO/pgvector remain the long-term target when Compose is available.
+Ingest SEC EDGAR filings for a chosen CIK (+ form types) into either the **local** data plane (filesystem + SQLite) or the **Compose** data plane (MinIO + Postgres/pgvector + OpenSearch), with section-aware chunking and OpenAI embeddings—so `query` can retrieve grounded context.
 
 **User:** platform operator via **CLI**, **BFF HTTP API**, or Annex **`/ingest`** UI.
 
@@ -29,8 +29,8 @@ Ingest SEC EDGAR filings for a chosen CIK (+ form types) into a local data plane
 | Chunk | Paragraph-first then sentence pack; target **512** / max **768** / overlap **64** tokens |
 | Embed | `EmbedderPort` + **`OpenAIEmbedder`** (`text-embedding-3-small`, 1536-d) for live; **`HashEmbedder`** for tests |
 | Persist (local) | `LocalFilesystemObjectStore` + `SqliteKnowledgeStore` under `INGEST_DATA_DIR` |
-| Persist (target) | Postgres/pgvector + MinIO when Compose is up |
-| OpenSearch | Port stub only (index no-op); real BM25 deferred |
+| Persist (compose) | `MinioObjectStore` + `PostgresKnowledgeStore` (pgvector 1536) when `KB_DATA_PLANE=compose` |
+| OpenSearch | `OpenSearchChunkIndex` (`SearchIndexPort`) for BM25 when compose; unused on local path |
 
 ---
 

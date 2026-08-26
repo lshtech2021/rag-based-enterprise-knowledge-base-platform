@@ -33,7 +33,53 @@ async def test_openai_embedder_batches_and_orders() -> None:
     await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_openai_embedder_uses_custom_base_url() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(
+            200,
+            json={"data": [{"index": 0, "embedding": [1.0, 0.0]}]},
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport)
+    embedder = OpenAIEmbedder(
+        api_key="test-key",
+        dimensions=2,
+        base_url="https://llm.example.com/v1/",
+        client=client,
+    )
+    await embedder.embed_documents(["a"])
+    assert seen
+    assert seen[0].startswith("https://llm.example.com/v1/embeddings")
+    await client.aclose()
+
+
 def test_openai_embedder_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         OpenAIEmbedder()
+
+
+def test_resolve_openai_base_url_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.embeddings.openai_embedder import (
+        resolve_openai_base_url,
+    )
+
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://proxy.example/v1/")
+    assert resolve_openai_base_url() == "https://proxy.example/v1"
+
+
+def test_build_openai_embedder_passes_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kb_ingestion.infrastructure.wiring import build_openai_embedder
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    embedder = build_openai_embedder(
+        base_url="https://gateway.local/v1",
+        model="custom-embed",
+    )
+    assert embedder.model == "custom-embed"
+    assert embedder._base_url == "https://gateway.local/v1"  # noqa: SLF001

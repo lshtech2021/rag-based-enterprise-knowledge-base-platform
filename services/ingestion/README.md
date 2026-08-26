@@ -14,6 +14,9 @@ uv sync --group dev
 
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 export OPENAI_API_KEY="sk-..."
+# Optional OpenAI-compatible gateway:
+# export OPENAI_BASE_URL=https://your-proxy.example/v1
+# export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
 # Latest 10-K/10-Q/8-K for Apple (CIK 320193)
 uv run kb-ingest --cik 320193
@@ -31,6 +34,21 @@ Outputs land under `data/ingestion/` by default:
 - `ingestion.sqlite3` — companies, filings, chunks, embeddings, cursor
 
 Re-run is incremental (skips if accession ≤ cursor). Force with `--force`.
+
+## Ingest a filing (Compose)
+
+```bash
+docker compose -f infra/docker-compose.yml --profile opensearch up -d
+export KB_DATA_PLANE=compose
+export DATABASE_URL=postgresql://kb:kb@localhost:5432/knowledge_base
+export OPENSEARCH_URL=http://localhost:9200
+export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+export OPENAI_API_KEY="sk-..."
+
+uv run kb-ingest --cik 320193 --backend compose
+```
+
+Stores raw HTML in MinIO, metadata/vectors in Postgres/pgvector, and BM25 docs in OpenSearch.
 
 ## HTTP API + UI
 

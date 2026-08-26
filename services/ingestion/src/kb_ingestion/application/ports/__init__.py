@@ -82,3 +82,20 @@ class IngestionCursorPort(Protocol):
     async def get_last_ingested(self, cik: CIK) -> AccessionNumber | None: ...
 
     async def set_last_ingested(self, cik: CIK, accession_no: AccessionNumber) -> None: ...
+
+
+@runtime_checkable
+class SearchIndexPort(Protocol):
+    """BM25 / full-text index for hybrid retrieval."""
+
+    async def replace_chunks(
+        self,
+        accession_no: AccessionNumber,
+        chunks: list[Chunk],
+        *,
+        source_url: str,
+    ) -> None: ...
+
+    async def search_bm25(self, query: str, *, top_k: int = 5) -> list[tuple[Chunk, float, str]]:
+        """Return (chunk, score, source_url) ordered by relevance."""
+        ...

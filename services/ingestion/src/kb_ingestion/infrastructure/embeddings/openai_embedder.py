@@ -8,7 +8,13 @@ import httpx
 
 DEFAULT_MODEL = "text-embedding-3-small"
 DEFAULT_DIMENSIONS = 1536
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _BATCH_SIZE = 64
+
+
+def resolve_openai_base_url(base_url: str | None = None) -> str:
+    resolved = (base_url or os.environ.get("OPENAI_BASE_URL", "")).strip() or DEFAULT_BASE_URL
+    return resolved.rstrip("/")
 
 
 class OpenAIEmbedder:
@@ -20,7 +26,7 @@ class OpenAIEmbedder:
         *,
         model: str = DEFAULT_MODEL,
         dimensions: int = DEFAULT_DIMENSIONS,
-        base_url: str = "https://api.openai.com/v1",
+        base_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         key = (api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")).strip()
@@ -29,7 +35,7 @@ class OpenAIEmbedder:
         self._api_key = key
         self._model = model
         self._dimensions = dimensions
-        self._base_url = base_url.rstrip("/")
+        self._base_url = resolve_openai_base_url(base_url)
         self._client = client
         self._owns_client = client is None
 

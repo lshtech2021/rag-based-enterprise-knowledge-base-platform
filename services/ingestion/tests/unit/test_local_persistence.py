@@ -45,10 +45,26 @@ async def test_sqlite_store_filing_chunks_embeddings_cursor(tmp_path) -> None:
         token_count=8,
     )
     await db.replace_chunks(accn, [chunk])
-    await db.upsert_embeddings([(chunk, [0.1, 0.2, 0.3], {"section": chunk.section})])
+    await db.upsert_embeddings(
+        [
+            (
+                chunk,
+                [0.1, 0.2, 0.3],
+                {"section": chunk.section, "source_url": "https://example.com/a.htm"},
+            )
+        ]
+    )
     await db.set_last_ingested(cik, accn)
 
     assert await db.get_filing(accn) is not None
     assert (await db.list_chunks(accn))[0].chunk_id == chunk.chunk_id
     assert await db.get_embedding(chunk.chunk_id) == [0.1, 0.2, 0.3]
     assert await db.get_last_ingested(cik) == accn
+
+    corpus = await db.list_retrieval_corpus()
+    assert len(corpus) == 1
+    loaded_chunk, vector, url = corpus[0]
+    assert loaded_chunk.chunk_id == chunk.chunk_id
+    assert vector == [0.1, 0.2, 0.3]
+    assert url == "https://example.com/a.htm"
+    assert await db.corpus_chunk_count() == 1

@@ -187,3 +187,53 @@ class SqliteKnowledgeStore:
                 (str(accession_no), str(cik)),
             )
             conn.commit()
+
+    async def list_retrieval_corpus(self) -> list[tuple[Chunk, list[float], str]]:
+        """Return ``(chunk, embedding, source_url)`` rows for hybrid retrieval."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    c.chunk_id,
+                    c.accession_no,
+                    c.section,
+                    c.text,
+                    c.token_count,
+                    e.embedding_json,
+                    e.metadata_json,
+                    COALESCE(f.source_url, '') AS source_url
+                FROM chunks c
+                INNER JOIN embeddings e ON e.chunk_id = c.chunk_id
+                LEFT JOIN filings f ON f.accession_no = c.accession_no
+                ORDER BY c.accession_no, c.chunk_index
+                """
+            ).fetchall()
+        corpus: list[tuple[Chunk, list[float], str]] = []
+        for row in rows:
+            meta = json.loads(row["metadata_json"] or "{}")
+            source_url = row["source_url"] or str(meta.get("source_url") or "")
+            corpus.append(
+                (
+                    Chunk(
+                        chunk_id=row["chunk_id"],
+                        accession_no=AccessionNumber(row["accession_no"]),
+                        section=row["section"],
+                        text=row["text"],
+                        token_count=row["token_count"],
+                    ),
+                    list(json.loads(row["embedding_json"])),
+                    source_url,
+                )
+            )
+        return corpus
+
+    async def corpus_chunk_count(self) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS n
+                FROM chunks c
+                INNER JOIN embeddings e ON e.chunk_id = c.chunk_id
+                """
+            ).fetchone()
+        return int(row["n"]) if row is not None else 0

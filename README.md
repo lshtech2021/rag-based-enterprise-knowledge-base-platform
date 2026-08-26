@@ -25,11 +25,22 @@ cd apps/web && npm install && npm run dev
 
 Open http://localhost:3000 — **Console**, **Ingest**, and **Reports** call the BFF (`NEXT_PUBLIC_BFF_URL`).
 
-### Ingest a filing (no Docker)
+### Ingest a filing (no Docker — local)
 
 ```bash
 export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
 export OPENAI_API_KEY="sk-..."
+export KB_DATA_PLANE=local
 make ingest CIK=320193 FORMS=10-K
 # data under data/ingestion/
+```
+
+### Compose data plane
+
+```bash
+docker compose -f infra/docker-compose.yml --profile opensearch up -d
+export KB_DATA_PLANE=compose
+export OPENAI_API_KEY="sk-..."
+export SEC_USER_AGENT="Annex Knowledge Base you@example.com"
+uv run kb-ingest --cik 320193 --backend compose
 ```

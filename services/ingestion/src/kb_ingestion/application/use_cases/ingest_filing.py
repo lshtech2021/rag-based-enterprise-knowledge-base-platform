@@ -13,6 +13,7 @@ from kb_ingestion.application.ports import (
     EmbedderPort,
     FilingRepository,
     IngestionCursorPort,
+    SearchIndexPort,
     VectorStorePort,
 )
 from kb_ingestion.domain.chunking import iter_chunk_payloads
@@ -44,6 +45,7 @@ class IngestFiling:
         chunks: ChunkRepository,
         vectors: VectorStorePort,
         cursor: IngestionCursorPort,
+        search_index: SearchIndexPort | None = None,
     ) -> None:
         self._edgar = edgar
         self._store = store
@@ -53,6 +55,7 @@ class IngestFiling:
         self._chunks = chunks
         self._vectors = vectors
         self._cursor = cursor
+        self._search_index = search_index
 
     async def execute(self, command: IngestFilingCommand) -> IngestFilingResult:
         meta = await self._edgar.fetch_latest_filing(command.cik, command.form_types)
@@ -111,6 +114,12 @@ class IngestFiling:
                 for chunk, vector in zip(built, vectors, strict=True)
             ]
         )
+        if self._search_index is not None:
+            await self._search_index.replace_chunks(
+                meta.accession_no,
+                built,
+                source_url=meta.source_url,
+            )
         await self._cursor.set_last_ingested(meta.cik, meta.accession_no)
         return IngestFilingResult(
             accession_no=meta.accession_no,

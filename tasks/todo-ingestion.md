@@ -28,4 +28,4 @@ Spec: [SPEC-ingestion.md](../SPEC-ingestion.md) · Plan: [plan-ingestion.md](pla
 
 - [x] SPEC-ingestion success criteria (unit/application/BFF)
 - [x] `make test lint typecheck` green
-- [ ] Human: push / start deeper query↔ingest shared vector wiring
+- [ ] Human: push; next optional slice = Postgres/pgvector adapters

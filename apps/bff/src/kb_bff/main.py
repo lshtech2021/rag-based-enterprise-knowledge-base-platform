@@ -9,8 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from kb_identity import Authenticate, build_authenticator
 from kb_ingestion.infrastructure.object_store.local_fs import LocalFilesystemObjectStore
 from kb_ingestion.infrastructure.persistence.sqlite_store import SqliteKnowledgeStore
-from kb_ingestion.infrastructure.wiring import build_local_ingest
+from kb_ingestion.infrastructure.wiring import build_compose_ingest, build_local_ingest
 from kb_observability import InMemoryLlmObserver, setup_inmemory_tracer
+from kb_query.infrastructure.wiring import (
+    build_compose_answer_query,
+    build_local_answer_query,
+)
+from kb_report.application.use_cases.generate_report import GenerateReport
+from kb_report.infrastructure.answer_query_adapter import AnswerQuerySectionAdapter
+from kb_report.infrastructure.in_memory_report_store import InMemoryReportRepository
 
 from kb_bff.identity_router import router as identity_router
 from kb_bff.ingest_router import router as ingest_router
@@ -25,36 +32,106 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     data_dir = Path(settings.ingest_data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    runtime = None
+    ingest_runtime = None
+    query_runtime = None
+    plane = (settings.kb_data_plane or "local").strip().lower()
+    app.state.data_plane = plane
 
     # Tests may inject fakes before the client starts; do not overwrite them.
-    if getattr(app.state, "filing_repository", None) is None:
+    if getattr(app.state, "filing_repository", None) is None and plane != "compose":
         app.state.filing_repository = SqliteKnowledgeStore(data_dir / "ingestion.sqlite3")
-    if getattr(app.state, "object_store", None) is None:
+    if getattr(app.state, "object_store", None) is None and plane != "compose":
         app.state.object_store = LocalFilesystemObjectStore(data_dir / "raw")
 
+    has_keys = bool(settings.sec_user_agent.strip() and settings.openai_api_key.strip())
+    openai_api_key = settings.openai_api_key.strip() or None
+    openai_base_url = settings.openai_base_url.strip() or None
+    openai_embedding_model = settings.openai_embedding_model.strip() or None
+    openai_chat_model = settings.openai_chat_model.strip() or None
+    if getattr(app.state, "ingest_filing", None) is None and has_keys:
+        if plane == "compose":
+            ingest_runtime = await build_compose_ingest(
+                user_agent=settings.sec_user_agent.strip(),
+                database_url=settings.database_url,
+                minio_endpoint=settings.minio_endpoint,
+                minio_access_key=settings.minio_access_key,
+                minio_secret_key=settings.minio_secret_key,
+                minio_bucket=settings.minio_bucket,
+                opensearch_url=settings.opensearch_url,
+                openai_api_key=openai_api_key,
+                openai_base_url=openai_base_url,
+                openai_embedding_model=openai_embedding_model,
+            )
+        else:
+            ingest_runtime = build_local_ingest(
+                user_agent=settings.sec_user_agent.strip(),
+                data_dir=data_dir,
+                openai_api_key=openai_api_key,
+                openai_base_url=openai_base_url,
+                openai_embedding_model=openai_embedding_model,
+            )
+        app.state.ingest_filing = ingest_runtime.use_case
+        app.state.filing_repository = ingest_runtime.filings
+        app.state.object_store = ingest_runtime.object_store
+        app.state.ingest_runtime = ingest_runtime
+
+    if getattr(app.state, "answer_query", None) is None and settings.openai_api_key.strip():
+        if plane == "compose":
+            query_runtime = await build_compose_answer_query(
+                database_url=settings.database_url,
+                opensearch_url=settings.opensearch_url,
+                openai_api_key=settings.openai_api_key.strip(),
+                openai_base_url=openai_base_url,
+                embedding_model=openai_embedding_model,
+                chat_model=openai_chat_model,
+            )
+        else:
+            query_runtime = await build_local_answer_query(
+                data_dir=data_dir,
+                openai_api_key=settings.openai_api_key.strip(),
+                openai_base_url=openai_base_url,
+                embedding_model=openai_embedding_model,
+                chat_model=openai_chat_model,
+            )
+        app.state.answer_query = query_runtime.use_case
+        app.state.query_runtime = query_runtime
+
     if (
-        getattr(app.state, "ingest_filing", None) is None
-        and settings.sec_user_agent.strip()
-        and settings.openai_api_key.strip()
+        getattr(app.state, "generate_report", None) is None
+        and getattr(app.state, "answer_query", None) is not None
     ):
-        runtime = build_local_ingest(
-            user_agent=settings.sec_user_agent.strip(),
-            data_dir=data_dir,
+        if getattr(app.state, "report_repository", None) is None:
+            app.state.report_repository = InMemoryReportRepository()
+        app.state.generate_report = GenerateReport(
+            answers=AnswerQuerySectionAdapter(app.state.answer_query),
+            reports=app.state.report_repository,
         )
-        app.state.ingest_filing = runtime.use_case
-        app.state.filing_repository = runtime.filings
-        app.state.object_store = runtime.object_store
-        app.state.ingest_runtime = runtime
+
+    corpus_chunks = 0
+    if query_runtime is not None:
+        corpus_chunks = query_runtime.corpus_size
+    else:
+        filing_repo = getattr(app.state, "filing_repository", None)
+        count_fn = getattr(filing_repo, "corpus_chunk_count", None)
+        if callable(count_fn):
+            corpus_chunks = await count_fn()
+    app.state.corpus_chunks = corpus_chunks
 
     try:
         yield
     finally:
-        if runtime is not None:
-            await runtime.edgar.aclose()
-            aclose = getattr(runtime.embedder, "aclose", None)
+        if ingest_runtime is not None:
+            await ingest_runtime.edgar.aclose()
+            aclose = getattr(ingest_runtime.embedder, "aclose", None)
             if callable(aclose):
                 await aclose()
+            if ingest_runtime.postgres_store is not None:
+                await ingest_runtime.postgres_store.aclose()
+        if query_runtime is not None:
+            await query_runtime.embedder.aclose()
+            await query_runtime.llm.aclose()
+            if query_runtime.postgres_store is not None:
+                await query_runtime.postgres_store.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -85,11 +162,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest_router)
 
     @app.get("/healthz")
-    def healthz() -> dict[str, str]:
+    def healthz() -> dict[str, object]:
         return {
             "status": "ok",
             "auth_mode": cfg.auth_mode,
             "tracing": "otel-inmemory",
+            "data_plane": getattr(app.state, "data_plane", cfg.kb_data_plane),
+            "ingest_configured": getattr(app.state, "ingest_filing", None) is not None,
+            "query_configured": getattr(app.state, "answer_query", None) is not None,
+            "report_configured": getattr(app.state, "generate_report", None) is not None,
+            "corpus_chunks": int(getattr(app.state, "corpus_chunks", 0) or 0),
         }
 
     return app

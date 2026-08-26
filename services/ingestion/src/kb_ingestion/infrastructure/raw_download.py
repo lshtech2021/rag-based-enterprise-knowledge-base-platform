@@ -31,6 +31,10 @@ async def load_raw_filing(
         body = await object_store.get_bytes(key)
         return body, key.rsplit("/", 1)[-1]
 
+    if uri.startswith("s3://"):
+        body = await object_store.get_bytes(uri)
+        return body, uri.rsplit("/", 1)[-1]
+
     if uri.startswith("file://"):
         path = Path(unquote(urlparse(uri).path))
         if not path.is_file():
