@@ -7,13 +7,14 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import nullcontext
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from kb_identity.domain.principal import Principal, Role
 from kb_observability.application.ports import LlmObserverPort
 from kb_observability.infrastructure.in_memory_observer import NoOpLlmObserver
+from kb_query.application.ports import ChatMessage
 from kb_query.application.use_cases.answer_query import AnswerQuery, AnswerQueryCommand
 from pydantic import BaseModel, Field
 
@@ -23,8 +24,14 @@ from kb_bff.logging_utils import get_logger, log_event, truncate
 _log = get_logger("kb_bff.query")
 
 
+class HistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+
+
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
+    history: list[HistoryMessage] = Field(default_factory=list, max_length=20)
     top_k: int = Field(default=5, ge=1, le=20)
 
 
@@ -77,6 +84,9 @@ async def query_sse(
                         question=body.question,
                         top_k=body.top_k,
                         user_id=principal.user_id,
+                        history=tuple(
+                            ChatMessage(role=m.role, content=m.content) for m in body.history
+                        ),
                     )
                 )
                 latency_ms = (time.perf_counter() - started) * 1000

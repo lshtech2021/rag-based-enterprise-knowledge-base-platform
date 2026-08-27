@@ -5,7 +5,7 @@ import json
 import httpx
 import pytest
 from kb_domain import AccessionNumber, Chunk
-from kb_query.application.ports import RetrievalHit
+from kb_query.application.ports import ChatMessage, RetrievalHit
 from kb_query.infrastructure.embeddings.openai_query_embedder import OpenAIQueryEmbedder
 from kb_query.infrastructure.llm.openai_chat_llm import OpenAIChatLLM
 
@@ -129,3 +129,58 @@ async def test_chat_and_embeddings_use_different_base_urls() -> None:
     assert llm.base_url != embedder.base_url
     await chat_http.aclose()
     await embed_http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_llm_rewrite_uses_history() -> None:
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append(body)
+        return httpx.Response(200, json=_chat_response("Apple competition risks Item 1A"))
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    llm = OpenAIChatLLM(api_key="test-key", http_client=http_client)
+    history = (
+        ChatMessage(role="user", content="Tell me about Apple risks"),
+        ChatMessage(role="assistant", content="Several risks are disclosed."),
+    )
+    rewritten = await llm.rewrite("What about that?", history=history)
+    assert "competition" in rewritten.lower() or "Apple" in rewritten
+    user = seen[0]["messages"][1]["content"]
+    assert "Prior conversation:" in user
+    assert "Current question: What about that?" in user
+    assert "Tell me about Apple risks" in user
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_llm_generate_includes_history_messages() -> None:
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append(body)
+        return httpx.Response(
+            200,
+            json=_chat_response(f"Follow-up grounded [cite:{_chunk().chunk_id}]"),
+        )
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    llm = OpenAIChatLLM(api_key="test-key", http_client=http_client)
+    history = (
+        ChatMessage(role="user", content="What competition risks?"),
+        ChatMessage(role="assistant", content="Competition is material."),
+    )
+    hit = RetrievalHit(chunk=_chunk(), score=1.0, source_url="https://example.com")
+    answer = await llm.generate("Say more", [hit], history=history)
+    assert hit.chunk.chunk_id in answer.cited_chunk_ids
+    messages = seen[0]["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1] == {"role": "user", "content": "What competition risks?"}
+    assert messages[2] == {"role": "assistant", "content": "Competition is material."}
+    assert messages[3]["role"] == "user"
+    assert "Context:" in messages[3]["content"]
+    assert "Question: Say more" in messages[3]["content"]
+    await http_client.aclose()

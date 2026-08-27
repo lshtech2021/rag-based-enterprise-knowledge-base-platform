@@ -30,6 +30,9 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
             Annex
           </Link>
           <nav className="flex items-center gap-5 text-sm font-medium text-muted">
+            <Link className="hover:text-teal" href="/chat">
+              Chat
+            </Link>
             <Link className="hover:text-teal" href="/console">
               Console
             </Link>

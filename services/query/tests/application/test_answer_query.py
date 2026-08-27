@@ -1,5 +1,6 @@
 import pytest
 from kb_domain import AccessionNumber, Chunk, Citation
+from kb_query.application.ports import ChatMessage
 from kb_query.application.use_cases.answer_query import AnswerQuery, AnswerQueryCommand
 from kb_query.domain.citation_validator import CitationValidator, UngroundedAnswerError
 from kb_query.infrastructure.embeddings.hash_query_embedder import HashQueryEmbedder
@@ -65,6 +66,26 @@ async def _seeded_use_case(
 async def test_answer_query_returns_grounded_citation() -> None:
     uc = await _seeded_use_case()
     result = await uc.execute(AnswerQueryCommand(question="What competition risks are disclosed?"))
+    assert result.citations
+    assert result.citations[0].chunk_id == "risk-1"
+    assert "[cite:risk-1]" in result.answer
+
+
+@pytest.mark.asyncio
+async def test_answer_query_with_history_returns_grounded_citation() -> None:
+    uc = await _seeded_use_case()
+    result = await uc.execute(
+        AnswerQueryCommand(
+            question="What about that?",
+            history=(
+                ChatMessage(role="user", content="What competition risks are disclosed?"),
+                ChatMessage(
+                    role="assistant",
+                    content="Competition is material [cite:risk-1]",
+                ),
+            ),
+        )
+    )
     assert result.citations
     assert result.citations[0].chunk_id == "risk-1"
     assert "[cite:risk-1]" in result.answer

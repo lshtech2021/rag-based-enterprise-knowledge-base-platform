@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
-from kb_query.application.ports import GeneratedAnswer, RetrievalHit
+from collections.abc import Sequence
+
+from kb_query.application.ports import ChatMessage, GeneratedAnswer, RetrievalHit
 
 
 class FakeLLM:
-    async def rewrite(self, question: str) -> str:
+    async def rewrite(
+        self, question: str, *, history: Sequence[ChatMessage] = ()
+    ) -> str:
+        _ = history
         return question.strip()
 
-    async def generate(self, question: str, hits: list[RetrievalHit]) -> GeneratedAnswer:
+    async def generate(
+        self,
+        question: str,
+        hits: list[RetrievalHit],
+        *,
+        history: Sequence[ChatMessage] = (),
+    ) -> GeneratedAnswer:
+        _ = question, history
         if not hits:
             return GeneratedAnswer(
                 text="I do not have enough grounded evidence to answer.",
@@ -24,10 +36,20 @@ class FakeLLM:
 class UngroundedFakeLLM:
     """Produces citations that do not exist — for validator tests."""
 
-    async def rewrite(self, question: str) -> str:
+    async def rewrite(
+        self, question: str, *, history: Sequence[ChatMessage] = ()
+    ) -> str:
+        _ = history
         return question
 
-    async def generate(self, question: str, hits: list[RetrievalHit]) -> GeneratedAnswer:
+    async def generate(
+        self,
+        question: str,
+        hits: list[RetrievalHit],
+        *,
+        history: Sequence[ChatMessage] = (),
+    ) -> GeneratedAnswer:
+        _ = question, hits, history
         return GeneratedAnswer(
             text="Earnings doubled overnight [cite:missing-chunk]",
             cited_chunk_ids=("missing-chunk",),

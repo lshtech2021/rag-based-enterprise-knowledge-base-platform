@@ -25,10 +25,20 @@ export type ReportResponse = {
   citations: Array<SourceCitation & { section_id: string }>;
 };
 
+export type ChatHistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 type SseHandlers = {
   onToken: (token: string) => void;
   onSources: (sources: SourceCitation[]) => void;
   onDone: (answer: string) => void;
+};
+
+type StreamQueryOptions = {
+  history?: ChatHistoryMessage[];
+  signal?: AbortSignal;
 };
 
 export async function fetchMe(): Promise<MeResponse> {
@@ -42,13 +52,16 @@ export async function fetchMe(): Promise<MeResponse> {
 export async function streamQuery(
   question: string,
   handlers: SseHandlers,
-  signal?: AbortSignal,
+  options: StreamQueryOptions = {},
 ): Promise<void> {
   const response = await fetch(`${bffBaseUrl}/v1/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ question }),
-    signal,
+    body: JSON.stringify({
+      question,
+      history: options.history ?? [],
+    }),
+    signal: options.signal,
   });
   if (!response.ok || !response.body) {
     throw new Error(`Query failed (${response.status})`);

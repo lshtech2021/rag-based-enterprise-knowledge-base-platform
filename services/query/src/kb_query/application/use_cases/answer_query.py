@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from kb_domain import Citation
 from kb_query.application.ports import (
+    ChatMessage,
     EmbedderPort,
     HybridRetrieverPort,
     LLMPort,
@@ -18,6 +19,9 @@ from kb_query.application.ports import (
 from kb_query.domain.citation_validator import CitationValidator, ValidatedAnswer
 
 _log = logging.getLogger("kb_query.answer_query")
+
+# Keep the last 10 messages (≈5 turns) for multi-turn rewrite/generate.
+_MAX_HISTORY_MESSAGES = 10
 
 
 def _truncate(text: str, n: int = 120) -> str:
@@ -32,6 +36,7 @@ class AnswerQueryCommand:
     question: str
     top_k: int = 5
     user_id: str | None = None
+    history: tuple[ChatMessage, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,18 +66,20 @@ class AnswerQuery:
 
     async def execute(self, command: AnswerQueryCommand) -> AnswerQueryResult:
         started = time.perf_counter()
+        history = command.history[-_MAX_HISTORY_MESSAGES:]
         _log.info(
-            "event=answer_query.start user_id=%s question=%s top_k=%s",
+            "event=answer_query.start user_id=%s question=%s top_k=%s history=%s",
             command.user_id or "-",
             _truncate(command.question),
             command.top_k,
+            len(history),
         )
         try:
-            rewritten = await self._llm.rewrite(command.question)
+            rewritten = await self._llm.rewrite(command.question, history=history)
             vector = await self._embedder.embed_query(rewritten)
             hits = await self._retriever.search(rewritten, vector, top_k=command.top_k)
             hits = await self._reranker.rerank(rewritten, hits, top_k=command.top_k)
-            draft = await self._llm.generate(command.question, hits)
+            draft = await self._llm.generate(command.question, hits, history=history)
             validated: ValidatedAnswer = self._validator.validate(draft, hits)
             latency_ms = (time.perf_counter() - started) * 1000
             if self._logs is not None:

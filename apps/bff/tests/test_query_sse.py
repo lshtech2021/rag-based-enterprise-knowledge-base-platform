@@ -56,3 +56,32 @@ def test_query_sse_streams_tokens_sources_done() -> None:
     assert "done" in types
     sources = next(e for e in events if e["type"] == "sources")["data"]
     assert sources[0]["chunk_id"] == "risk-1"
+
+
+def test_query_sse_accepts_history() -> None:
+    app = create_app()
+    app.state.answer_query = _build_use_case()
+    client = TestClient(app)
+    with client.stream(
+        "POST",
+        "/v1/query",
+        json={
+            "question": "What about that?",
+            "history": [
+                {"role": "user", "content": "What competition risks are disclosed?"},
+                {
+                    "role": "assistant",
+                    "content": "Competition is material [cite:risk-1]",
+                },
+            ],
+        },
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+
+    types = [
+        json.loads(line.removeprefix("data: "))["type"]
+        for line in body.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert "done" in types
